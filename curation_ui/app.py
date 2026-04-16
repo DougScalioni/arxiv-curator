@@ -2,6 +2,7 @@
 from __future__ import annotations
 import os
 from functools import wraps
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -264,6 +265,18 @@ def api_reading_list_remove():
     db.table("reading_list").delete().eq("user_id", user.id).eq("paper_id", paper_id).execute()
     papers = get_reading_list(user.id)
     return jsonify({"ok": True, "ids": [p["id"] for p in papers]})
+
+
+def _start_scheduler():
+    from fetcher.fetch import main as fetch_main
+    scheduler = BackgroundScheduler()
+    # Run daily at 15:00 UTC (Mon–Fri), after arxiv publishes new submissions
+    scheduler.add_job(fetch_main, "cron", day_of_week="mon-fri", hour=15, minute=0)
+    scheduler.start()
+
+
+if os.environ.get("FLASK_ENV") != "development":
+    _start_scheduler()
 
 
 def main():
