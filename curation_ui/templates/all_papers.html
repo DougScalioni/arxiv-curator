@@ -166,6 +166,16 @@
   }
   .add-submit:hover { background: var(--red-dark); }
 
+  /* Submission type badge */
+  .type-badge {
+    display: inline-block; font-size: 0.72em; padding: 0.05em 0.4em;
+    border-radius: 2px; border: 1px solid; margin-left: 0.3em;
+    vertical-align: middle; font-weight: normal;
+  }
+  .type-new         { color: var(--green);  border-color: var(--green);  background: var(--green-bg); }
+  .type-cross       { color: var(--blue);   border-color: var(--blue);   background: var(--blue-bg); }
+  .type-replacement { color: var(--text-dim); border-color: var(--border); background: var(--bg-alt); }
+
   /* Category list */
   .cat-group { margin-bottom: 0.2rem; }
 
@@ -382,6 +392,27 @@
           <input class="add-input" id="kw-name" type="text" placeholder="add keyword…"
             onkeydown="if(event.key==='Enter') addKeyword()">
           <button class="add-submit" onclick="addKeyword()">+</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submission type -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title" onclick="toggleSection(this)">
+        submission type <span class="section-arrow">▼</span>
+      </div>
+      <div class="sidebar-section-body">
+        <div class="filter-row">
+          <input type="checkbox" id="cb-type-new" checked onchange="render()">
+          <label for="cb-type-new">new submissions</label>
+        </div>
+        <div class="filter-row">
+          <input type="checkbox" id="cb-type-cross" checked onchange="render()">
+          <label for="cb-type-cross">cross-lists</label>
+        </div>
+        <div class="filter-row">
+          <input type="checkbox" id="cb-type-replacement" checked onchange="render()">
+          <label for="cb-type-replacement">replacements</label>
         </div>
       </div>
     </div>
@@ -979,12 +1010,19 @@ function matchesSearch(p) {
 function filtered() {
   const onlyFollowed = document.getElementById('cb-followed')?.checked;
   const onlyKeywords = document.getElementById('cb-keywords')?.checked;
+  const showNew         = document.getElementById('cb-type-new')?.checked ?? true;
+  const showCross       = document.getElementById('cb-type-cross')?.checked ?? true;
+  const showReplacement = document.getElementById('cb-type-replacement')?.checked ?? true;
 
   let result = papers.filter(p => {
     if (!(p.categories||[]).some(c => selectedCats.has(c))) return false;
     if (!matchesSearch(p)) return false;
     if (onlyFollowed && !(p.authors||[]).some(a => followedAuthors.has(a))) return false;
     if (onlyKeywords && scoreKeywords(p).score === 0) return false;
+    const t = p.submission_type || 'new';
+    if (t === 'new'         && !showNew)         return false;
+    if (t === 'cross'       && !showCross)       return false;
+    if (t === 'replacement' && !showReplacement) return false;
     return true;
   });
 
@@ -1051,6 +1089,7 @@ function render() {
         <span class="primary-cat" title="${catTitle(p.primary_category||'')}">${escHtml(p.primary_category||'')}</span>
         <span>${(p.categories||[]).filter(c=>c!==p.primary_category).map(c=>`<span title="${catTitle(c)}">${escHtml(c)}</span>`).join(' ')}</span>
         <span>${p.published?p.published.slice(0,10):''}</span>
+        ${(()=>{const t=p.submission_type||'new'; const label={new:'new',cross:'cross-list',replacement:'replacement'}[t]||t; return `<span class="type-badge type-${t}">${label}</span>`;})()}
       </div>
       ${kwHtml}
       <div class="paper-abstract">${highlight(p.abstract||'')}</div>

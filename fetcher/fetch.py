@@ -17,19 +17,40 @@ BATCH_SIZE = 200
 DELAY = 3  # seconds between API requests (arxiv rate limit)
 
 
-def get_new_ids(category: str) -> list[str]:
-    """Scrape today's new + cross-listed paper IDs from arxiv /list/{cat}/new."""
+_TYPE_PRIORITY = {"new": 0, "cross": 1, "replacement": 2}
+
+
+def get_new_ids(category: str) -> dict[str, list[str]]:
+    """Scrape today's paper IDs from arxiv /list/{cat}/new, split by section.
+
+    Returns {"new": [...], "cross": [...], "replacement": [...]}.
+    """
     url = ARXIV_LIST.format(category=category)
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
     html = resp.text
 
-    # Extract IDs from paper entry links — matches arXiv's own count exactly.
-    # href\s*= handles the space arXiv sometimes inserts before the attribute value.
-    # dict.fromkeys preserves insertion order while deduplicating.
-    ids = list(dict.fromkeys(re.findall(r'href\s*="/abs/(\d{4}\.\d{4,5})', html)))
-    print(f"    {category}: {len(ids)} new papers")
-    return ids
+    sections: dict[str, list[str]] = {"new": [], "cross": [], "replacement": []}
+    current: str | None = None
+
+    for part in re.split(r'<h3[^>]*>', html, flags=re.IGNORECASE):
+        head = part[:120].lower()
+        if "new submission" in head:
+            current = "new"
+        elif "cross-list" in head or "cross list" in head:
+            current = "cross"
+        elif "replacement" in head:
+            current = "replacement"
+
+        if current:
+            ids = list(dict.fromkeys(re.findall(r'href\s*="/abs/(\d{4}\.\d{4,5})', part)))
+            sections[current].extend(ids)
+
+    total = sum(len(v) for v in sections.values())
+    print(f"    {category}: {total} papers "
+          f"(new={len(sections['new'])}, cross={len(sections['cross'])}, "
+          f"replacements={len(sections['replacement'])})")
+    return sections
 
 
 def fetch_details(ids: list[str]) -> list[dict]:
@@ -87,19 +108,30 @@ def main():
     print(f"Fetching today's new arxiv papers for {date}...")
     print(f"Categories: {', '.join(categories)}\n")
 
-    # Collect all new IDs across categories
-    all_ids = []
-    seen = set()
+    # Collect all new IDs across categories, tracking submission type per paper.
+    # If a paper appears in multiple categories, highest-priority type wins
+    # (new > cross > replacement).
+    all_ids: list[str] = []
+    seen: set[str] = set()
+    type_map: dict[str, str] = {}  # base_id -> submission type
+
     for cat in categories:
         try:
-            ids = get_new_ids(cat)
+            sections = get_new_ids(cat)
+        except Exception as e:
+            print(f"  Warning: could not fetch {cat}: {e}")
+            time.sleep(1)
+            continue
+
+        for type_, ids in sections.items():
             for id_ in ids:
                 base = re.sub(r'v\d+$', '', id_)
                 if base not in seen:
                     seen.add(base)
                     all_ids.append(id_)
-        except Exception as e:
-            print(f"  Warning: could not fetch {cat}: {e}")
+                    type_map[base] = type_
+                elif _TYPE_PRIORITY[type_] < _TYPE_PRIORITY.get(type_map[base], 99):
+                    type_map[base] = type_
         time.sleep(1)  # be polite between listing page requests
 
     print(f"\n{len(all_ids)} unique papers across all categories")
@@ -110,6 +142,10 @@ def main():
 
     print("Fetching full paper details...\n")
     papers = fetch_details(all_ids)
+
+    for p in papers:
+        base = re.sub(r'v\d+$', '', p["id"])
+        p["submission_type"] = type_map.get(base, "new")
 
     db = get_admin_client()
     db.table("papers").upsert({"date": date, "papers": papers}).execute()
