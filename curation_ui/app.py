@@ -173,6 +173,14 @@ def get_reading_list(user_id: str) -> list[dict]:
     return [r["paper_json"] for r in result.data]
 
 
+def get_email_prefs(user_id: str) -> dict:
+    db = get_admin_client()
+    result = db.table("email_prefs").select("*").eq("user_id", user_id).execute()
+    if result.data:
+        return result.data[0]
+    return {"enabled": True, "day_of_week": 4, "include_keywords": True, "include_authors": False}
+
+
 # ── App routes ────────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -186,6 +194,36 @@ def index():
 @require_auth
 def reading_list_page():
     return render_template("reading_list.html")
+
+
+@app.route("/email-settings")
+@require_auth
+def email_settings_page():
+    return render_template("email_settings.html")
+
+
+@app.route("/api/email-prefs")
+@require_auth
+def api_get_email_prefs():
+    user = get_current_user()
+    return jsonify(get_email_prefs(user.id))
+
+
+@app.route("/api/email-prefs", methods=["POST"])
+@require_auth
+def api_save_email_prefs():
+    user = get_current_user()
+    data = request.json or {}
+    prefs = {
+        "user_id": user.id,
+        "enabled": bool(data.get("enabled", True)),
+        "day_of_week": int(data.get("day_of_week", 4)),
+        "include_keywords": bool(data.get("include_keywords", True)),
+        "include_authors": bool(data.get("include_authors", False)),
+    }
+    db = get_admin_client()
+    db.table("email_prefs").upsert(prefs).execute()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/papers")
@@ -307,7 +345,7 @@ def _start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(fetch_main, "cron", day_of_week="mon-fri", hour=15, minute=0)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=16, minute=0)
-    scheduler.add_job(send_weekly_digest, "cron", day_of_week="fri", hour=17, minute=0)
+    scheduler.add_job(send_weekly_digest, "cron", hour=17, minute=0)
     scheduler.start()
 
 

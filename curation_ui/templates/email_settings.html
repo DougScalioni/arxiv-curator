@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arXiv curator — email settings</title>
+<style>
+  :root {
+    --red: #b31b1b; --red-dark: #440a0a; --red-light: #f9f0f0;
+    --blue: #1777bc; --blue-dark: #005e9d;
+    --bg: #ffffff; --bg-alt: #f5f5f5;
+    --border: #cccccc; --text: #000000; --text-dim: #757575; --text-mid: #333333;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Lucida Grande', Helvetica, Arial, Verdana, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 90%; line-height: 1.5; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; color: var(--blue-dark); }
+
+  .identity-bar { background: #222; height: 8px; }
+  .header {
+    background: var(--red); padding: 0.6rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    border-bottom: 2px solid var(--border);
+  }
+  .header-brand { font-size: 1.3em; font-weight: bold; color: #fff; }
+  .header-brand span { font-weight: normal; opacity: 0.85; }
+  .btn {
+    font-family: inherit; font-size: 0.8em; padding: 0.3em 0.75em;
+    border: 1px solid transparent; background: rgba(255,255,255,0.15);
+    color: #fff; cursor: pointer; border-radius: 2px; text-decoration: none;
+    display: inline-block; white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255,255,255,0.28); text-decoration: none; color: #fff; }
+
+  .main { max-width: 520px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  .page-title {
+    font-size: 1.1em; font-weight: bold; color: var(--text-mid);
+    margin-bottom: 1.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);
+  }
+
+  .field { margin-bottom: 1.25rem; }
+  .field-label {
+    font-size: 0.8em; font-weight: bold; color: var(--text-mid);
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.4rem; display: block;
+  }
+
+  .toggle-row {
+    display: flex; align-items: center; gap: 0.6rem;
+  }
+  .toggle-row label { font-size: 0.9em; color: var(--text-mid); cursor: pointer; }
+
+  select {
+    font-family: inherit; font-size: 0.88em; padding: 0.3em 0.6em;
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    border-radius: 2px; outline: none; cursor: pointer;
+  }
+  select:focus { border-color: var(--blue); }
+
+  .checkbox-row {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem;
+  }
+  .checkbox-row input { accent-color: var(--red); cursor: pointer; width: 14px; height: 14px; }
+  .checkbox-row label { font-size: 0.88em; color: var(--text-mid); cursor: pointer; }
+  .checkbox-desc { font-size: 0.78em; color: var(--text-dim); margin-left: 1.6rem; margin-top: -0.2rem; margin-bottom: 0.5rem; }
+
+  .save-btn {
+    font-family: inherit; font-size: 0.88em; padding: 0.4em 1.2em;
+    border: none; background: var(--red); color: #fff;
+    cursor: pointer; border-radius: 2px; transition: background 0.15s;
+  }
+  .save-btn:hover { background: var(--red-dark); }
+  .save-btn:disabled { background: #ccc; cursor: default; }
+
+  .status { font-size: 0.82em; color: var(--text-dim); margin-left: 0.75rem; }
+  .status.ok { color: #009917; }
+  .status.err { color: var(--red); }
+
+  .disabled-overlay { opacity: 0.4; pointer-events: none; }
+
+  @media (max-width: 600px) {
+    .header { padding: 0.5rem 1rem; }
+    .main { padding: 1.5rem 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="identity-bar"></div>
+<div class="header">
+  <div class="header-brand">arXiv curator <span>// email settings</span></div>
+  <div>
+    <a class="btn" href="/">← back</a>
+  </div>
+</div>
+
+<div class="main">
+  <div class="page-title">Weekly digest</div>
+
+  <div class="field">
+    <div class="toggle-row">
+      <input type="checkbox" id="enabled" onchange="onEnabledChange()">
+      <label for="enabled">Send me a weekly digest</label>
+    </div>
+  </div>
+
+  <div id="prefs-body">
+    <div class="field">
+      <span class="field-label">Day</span>
+      <select id="day_of_week">
+        <option value="0">Monday</option>
+        <option value="1">Tuesday</option>
+        <option value="2">Wednesday</option>
+        <option value="3">Thursday</option>
+        <option value="4" selected>Friday</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <span class="field-label">Include</span>
+      <div class="checkbox-row">
+        <input type="checkbox" id="include_keywords">
+        <label for="include_keywords">Keyword matches</label>
+      </div>
+      <div class="checkbox-desc">Top 50 papers matching your saved keywords, ranked by number of matches.</div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="include_authors">
+        <label for="include_authors">Followed authors</label>
+      </div>
+      <div class="checkbox-desc">All papers by authors you follow that aren't already in the keyword list.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;margin-top:0.5rem;">
+    <button class="save-btn" onclick="save()">Save</button>
+    <span class="status" id="status"></span>
+  </div>
+</div>
+
+<script>
+async function load() {
+  const r = await fetch('/api/email-prefs');
+  const p = await r.json();
+  document.getElementById('enabled').checked = p.enabled;
+  document.getElementById('day_of_week').value = p.day_of_week;
+  document.getElementById('include_keywords').checked = p.include_keywords;
+  document.getElementById('include_authors').checked = p.include_authors;
+  updateDisabled(p.enabled);
+}
+
+function onEnabledChange() {
+  updateDisabled(document.getElementById('enabled').checked);
+}
+
+function updateDisabled(enabled) {
+  document.getElementById('prefs-body').classList.toggle('disabled-overlay', !enabled);
+}
+
+async function save() {
+  const btn = document.querySelector('.save-btn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  status.textContent = 'saving…';
+  status.className = 'status';
+
+  const body = {
+    enabled: document.getElementById('enabled').checked,
+    day_of_week: parseInt(document.getElementById('day_of_week').value),
+    include_keywords: document.getElementById('include_keywords').checked,
+    include_authors: document.getElementById('include_authors').checked,
+  };
+
+  try {
+    const r = await fetch('/api/email-prefs', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    status.textContent = d.ok ? 'saved!' : 'error saving';
+    status.className = 'status ' + (d.ok ? 'ok' : 'err');
+  } catch (e) {
+    status.textContent = 'error saving';
+    status.className = 'status err';
+  }
+  btn.disabled = false;
+}
+
+load();
+</script>
+</body>
+</html>

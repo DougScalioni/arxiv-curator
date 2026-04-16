@@ -33,6 +33,19 @@ CREATE POLICY "users manage own followed_authors" ON followed_authors
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
+-- Email preferences
+CREATE TABLE IF NOT EXISTS email_prefs (
+  user_id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  day_of_week SMALLINT NOT NULL DEFAULT 4,  -- 0=Mon … 6=Sun; default=Friday
+  include_keywords BOOLEAN NOT NULL DEFAULT true,
+  include_authors BOOLEAN NOT NULL DEFAULT false
+);
+ALTER TABLE email_prefs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "users manage own email_prefs" ON email_prefs
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
 -- Reading list
 CREATE TABLE IF NOT EXISTS reading_list (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
