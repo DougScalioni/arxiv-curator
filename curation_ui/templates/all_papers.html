@@ -264,8 +264,10 @@
 <div class="identity-bar"></div>
 
 <div class="header">
-  <div class="header-brand">arXiv curator <span>// {{ date }}</span></div>
+  <div class="header-brand">arXiv curator <span id="header-date">// {{ date }}</span></div>
   <div class="header-right">
+    <button class="btn btn-white" id="toggle-day" onclick="setView('day')">day</button>
+    <button class="btn" id="toggle-week" onclick="setView('week')">week</button>
     <a class="btn btn-white" href="/reading-list">reading list <span id="rl-count"></span></a>
   </div>
 </div>
@@ -403,6 +405,7 @@ function catTitle(cat) {
 }
 
 const DATE = "{{ date }}";
+let viewMode = 'day';
 let papers = [];
 let selectedCats = new Set();
 let followedAuthors = new Set();
@@ -410,6 +413,20 @@ let keywords = [];        // [string]
 let readingListIds = new Set();
 let searchQuery = "";
 let searchTimer = null;
+
+async function setView(mode) {
+  viewMode = mode;
+  document.getElementById('toggle-day').className = 'btn ' + (mode === 'day' ? 'btn-white' : '');
+  document.getElementById('toggle-week').className = 'btn ' + (mode === 'week' ? 'btn-white' : '');
+  document.getElementById('header-date').textContent = mode === 'week' ? '// this week' : `// ${DATE}`;
+  document.getElementById('papers').innerHTML = '<div class="loading">loading papers…</div>';
+  const url = mode === 'week' ? '/api/papers/week' : `/api/papers?date=${DATE}`;
+  papers = (await fetch(url).then(r => r.json())).papers;
+  selectedCats = new Set();
+  buildCategoryList();
+  renderKeywordSidebar();
+  render();
+}
 
 async function load() {
   const [papersRes, authorsRes, kwRes, rlRes] = await Promise.all([

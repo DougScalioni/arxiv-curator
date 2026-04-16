@@ -138,6 +138,23 @@ def get_raw_papers(date: str) -> list[dict]:
     return result.data[0]["papers"] if result.data else []
 
 
+def get_week_papers() -> list[dict]:
+    from datetime import date, timedelta
+    db = get_admin_client()
+    today = date.today()
+    dates = [(today - timedelta(days=i)).isoformat() for i in range(7)]
+    result = db.table("papers").select("papers").in_("date", dates).execute()
+    seen: set[str] = set()
+    merged: list[dict] = []
+    for row in result.data:
+        for p in row["papers"]:
+            pid = p.get("id", "")
+            if pid not in seen:
+                seen.add(pid)
+                merged.append(p)
+    return merged
+
+
 def get_keywords(user_id: str) -> list[str]:
     db = get_admin_client()
     result = db.table("keywords").select("keyword").eq("user_id", user_id).execute()
@@ -176,6 +193,12 @@ def reading_list_page():
 def api_papers():
     date = request.args.get("date", today_str())
     return jsonify({"date": date, "papers": get_raw_papers(date)})
+
+
+@app.route("/api/papers/week")
+@require_auth
+def api_papers_week():
+    return jsonify({"papers": get_week_papers()})
 
 
 @app.route("/api/authors")
@@ -271,11 +294,18 @@ def api_reading_list_remove():
     return jsonify({"ok": True, "ids": [p["id"] for p in papers]})
 
 
+def _cleanup_old_papers():
+    from datetime import date, timedelta
+    db = get_admin_client()
+    cutoff = (date.today() - timedelta(days=7)).isoformat()
+    db.table("papers").delete().lt("date", cutoff).execute()
+
+
 def _start_scheduler():
     from fetcher.fetch import main as fetch_main
     scheduler = BackgroundScheduler()
-    # Run daily at 15:00 UTC (Mon–Fri), after arxiv publishes new submissions
     scheduler.add_job(fetch_main, "cron", day_of_week="mon-fri", hour=15, minute=0)
+    scheduler.add_job(_cleanup_old_papers, "cron", hour=16, minute=0)
     scheduler.start()
 
 
