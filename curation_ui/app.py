@@ -17,6 +17,9 @@ from datetime import timedelta
 app = Flask(__name__, template_folder="templates")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
 app.permanent_session_lifetime = timedelta(days=30)
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -132,10 +135,17 @@ def logout():
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
+_papers_cache: dict = {}  # date -> list[dict], one entry kept at a time
+
 def get_raw_papers(date: str) -> list[dict]:
+    if date in _papers_cache:
+        return _papers_cache[date]
     db = get_admin_client()
     result = db.table("papers").select("papers").eq("date", date).execute()
-    return result.data[0]["papers"] if result.data else []
+    papers = result.data[0]["papers"] if result.data else []
+    _papers_cache.clear()
+    _papers_cache[date] = papers
+    return papers
 
 
 def get_week_papers() -> list[dict]:
@@ -333,6 +343,12 @@ def api_reading_list_remove():
     return jsonify({"ok": True, "ids": [p["id"] for p in papers]})
 
 
+def _fetch_and_refresh():
+    from fetcher.fetch import main as fetch_main
+    fetch_main()
+    _papers_cache.clear()
+
+
 def _cleanup_old_papers():
     from datetime import date, timedelta
     db = get_admin_client()
@@ -341,10 +357,9 @@ def _cleanup_old_papers():
 
 
 def _start_scheduler():
-    from fetcher.fetch import main as fetch_main
     from utils.email import send_weekly_digest
     scheduler = BackgroundScheduler()
-    scheduler.add_job(fetch_main, "cron", day_of_week="mon-fri", hour=15, minute=0)
+    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="mon-fri", hour=15, minute=0)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=16, minute=0)
     scheduler.add_job(send_weekly_digest, "cron", hour=17, minute=0)
     scheduler.start()

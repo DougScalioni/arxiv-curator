@@ -3,8 +3,14 @@
 fixes: 
 - clean up. Lots of folders with stuff that isn't being used. Would be nice to have a diagram describing everything.
 - the followed author is too subtle, I have to think about how to improve this.
+- make sure the login stays over sessions.
 
 some ideas:
+- click on author and take to author page on scholar, also with option to add author to list on dropdown list.
+- separate by cross submissions, primary and replacements. Separate by field.
+- where to click to expand the listing.
+- search bar for categories with auto suggestions.
+- public author lists.
 - statistics on authors.
 - citations.
 - email summary of the week.
