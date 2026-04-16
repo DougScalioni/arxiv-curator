@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS email_prefs (
   enabled BOOLEAN NOT NULL DEFAULT true,
   day_of_week SMALLINT NOT NULL DEFAULT 4,  -- 0=Mon … 6=Sun; default=Friday
   include_keywords BOOLEAN NOT NULL DEFAULT true,
-  include_authors BOOLEAN NOT NULL DEFAULT false
+  include_authors BOOLEAN NOT NULL DEFAULT false,
+  startup_categories TEXT NOT NULL DEFAULT ''  -- semicolon-separated; empty = all selected
 );
 ALTER TABLE email_prefs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users manage own email_prefs" ON email_prefs

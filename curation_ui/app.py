@@ -196,10 +196,10 @@ def reading_list_page():
     return render_template("reading_list.html")
 
 
-@app.route("/email-settings")
+@app.route("/settings")
 @require_auth
-def email_settings_page():
-    return render_template("email_settings.html")
+def settings_page():
+    return render_template("settings.html")
 
 
 @app.route("/api/email-prefs")
@@ -220,6 +220,7 @@ def api_save_email_prefs():
         "day_of_week": int(data.get("day_of_week", 4)),
         "include_keywords": bool(data.get("include_keywords", True)),
         "include_authors": bool(data.get("include_authors", False)),
+        "startup_categories": data.get("startup_categories", ""),
     }
     db = get_admin_client()
     db.table("email_prefs").upsert(prefs).execute()

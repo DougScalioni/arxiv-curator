@@ -105,7 +105,13 @@
     text-transform: uppercase; letter-spacing: 0.06em;
     margin-bottom: 0.45rem; padding-bottom: 0.2rem;
     border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
   }
+  .sidebar-section-title:hover { color: var(--red); }
+  .sidebar-section-title .section-arrow { font-size: 0.8em; color: var(--text-dim); }
+  .sidebar-section-body { overflow: hidden; }
+  .sidebar-section-body.collapsed { display: none; }
 
   .sb-row { display: flex; gap: 0.35rem; margin-bottom: 0.45rem; flex-wrap: wrap; }
 
@@ -316,7 +322,8 @@
     <button class="btn btn-white" id="toggle-day" onclick="setView('day')">day</button>
     <button class="btn" id="toggle-week" onclick="setView('week')">week</button>
     <a class="btn btn-white" href="/reading-list">reading list <span id="rl-count"></span></a>
-    <a class="btn" href="/email-settings">email</a>
+    <a class="btn" href="/settings">settings</a>
+    <a class="btn" href="/logout">log out</a>
   </div>
 </div>
 
@@ -339,43 +346,61 @@
 
     <!-- Followed authors -->
     <div class="sidebar-section">
-      <div class="sidebar-section-title">followed authors</div>
-      <div class="filter-row">
-        <input type="checkbox" id="cb-followed" onchange="render()">
-        <label for="cb-followed">show only followed</label>
+      <div class="sidebar-section-title" onclick="toggleSection(this)">
+        followed authors <span class="section-arrow">▼</span>
       </div>
-      <div class="item-list" id="followed-list">
-        <span class="empty-note">click an author name to follow</span>
+      <div class="sidebar-section-body">
+        <div class="filter-row">
+          <input type="checkbox" id="cb-followed" onchange="render()">
+          <label for="cb-followed">show only followed</label>
+        </div>
+        <div class="item-list" id="followed-list">
+          <span class="empty-note">click an author name to follow</span>
+        </div>
+        <div class="add-form">
+          <input class="add-input" id="author-name" type="text" placeholder="add author…"
+            onkeydown="if(event.key==='Enter') addAuthor()">
+          <button class="add-submit" onclick="addAuthor()">+</button>
+        </div>
       </div>
     </div>
 
     <!-- Keywords -->
     <div class="sidebar-section">
-      <div class="sidebar-section-title">keywords</div>
-      <div class="filter-row">
-        <input type="checkbox" id="cb-keywords" onchange="render()">
-        <label for="cb-keywords">show only keyword matches</label>
+      <div class="sidebar-section-title" onclick="toggleSection(this)">
+        keywords <span class="section-arrow">▼</span>
       </div>
-      <div class="item-list" id="keyword-list">
-        <span class="empty-note">no keywords yet</span>
-      </div>
-      <div class="add-form">
-        <input class="add-input" id="kw-name" type="text" placeholder="add keyword…"
-          onkeydown="if(event.key==='Enter') addKeyword()">
-        <button class="add-submit" onclick="addKeyword()">+</button>
+      <div class="sidebar-section-body">
+        <div class="filter-row">
+          <input type="checkbox" id="cb-keywords" onchange="render()">
+          <label for="cb-keywords">show only keyword matches</label>
+        </div>
+        <div class="item-list" id="keyword-list">
+          <span class="empty-note">no keywords yet</span>
+        </div>
+        <div class="add-form">
+          <input class="add-input" id="kw-name" type="text" placeholder="add keyword…"
+            onkeydown="if(event.key==='Enter') addKeyword()">
+          <button class="add-submit" onclick="addKeyword()">+</button>
+        </div>
       </div>
     </div>
 
     <!-- Categories -->
     <div class="sidebar-section">
-      <div class="sidebar-section-title">categories</div>
-      <div class="sb-row">
-        <button class="sb-btn" onclick="selectAllCats()">all</button>
-        <button class="sb-btn" onclick="selectNoneCats()">none</button>
-        <button class="sb-btn" onclick="expandAllGroups()">expand</button>
-        <button class="sb-btn" onclick="collapseAllGroups()">collapse</button>
+      <div class="sidebar-section-title" onclick="toggleSection(this)">
+        categories <span class="section-arrow">▼</span>
       </div>
-      <div id="cat-list"><span class="empty-note">loading…</span></div>
+      <div class="sidebar-section-body">
+        <div class="sb-row">
+          <button class="sb-btn" onclick="selectAllCats()">all</button>
+          <button class="sb-btn" onclick="selectNoneCats()">none</button>
+          <button class="sb-btn" onclick="selectStartupCats()">startup</button>
+          <button class="sb-btn" onclick="expandAllGroups()">expand</button>
+          <button class="sb-btn" onclick="collapseAllGroups()">collapse</button>
+        </div>
+        <div id="cat-list"><span class="empty-note">loading…</span></div>
+      </div>
     </div>
 
   </aside>
@@ -466,6 +491,7 @@ let keywords = [];        // [string]
 let readingListIds = new Set();
 let searchQuery = "";
 let searchTimer = null;
+let startupCats = [];     // top-level cats to pre-select; empty = all
 
 async function setView(mode) {
   viewMode = mode;
@@ -482,16 +508,20 @@ async function setView(mode) {
 }
 
 async function load() {
-  const [papersRes, authorsRes, kwRes, rlRes] = await Promise.all([
+  const [papersRes, authorsRes, kwRes, rlRes, prefsRes] = await Promise.all([
     fetch(`/api/papers?date=${DATE}`),
     fetch('/api/authors'),
     fetch('/api/keywords'),
-    fetch('/api/reading_list')
+    fetch('/api/reading_list'),
+    fetch('/api/email-prefs'),
   ]);
   papers = (await papersRes.json()).papers;
   followedAuthors = new Set((await authorsRes.json()).authors);
   keywords = (await kwRes.json()).keywords;
   readingListIds = new Set((await rlRes.json()).papers.map(p => p.id));
+  const prefs = await prefsRes.json();
+  startupCats = (prefs.startup_categories || '')
+    .split(';').map(s => s.trim().toLowerCase()).filter(Boolean);
 
   buildCategoryList();
   renderFollowedSidebar();
@@ -565,7 +595,10 @@ function buildCategoryList() {
     if (!groups[top]) groups[top] = [];
     groups[top].push({cat, n});
   });
-  Object.keys(counts).forEach(c => selectedCats.add(c));
+  Object.keys(counts).forEach(c => {
+    const top = c.split('.')[0].toLowerCase();
+    if (!startupCats.length || startupCats.includes(top)) selectedCats.add(c);
+  });
 
   const el = document.getElementById('cat-list');
   el.innerHTML = Object.entries(groups)
@@ -574,7 +607,7 @@ function buildCategoryList() {
       const groupTotal = subs.reduce((s, x) => s + x.n, 0);
       const rows = subs.sort((a, b) => b.n - a.n).map(({cat, n}) => `
         <div class="cat-item" title="${catTitle(cat)}">
-          <input type="checkbox" id="cb-${cat}" value="${cat}" checked
+          <input type="checkbox" id="cb-${cat}" value="${cat}" ${selectedCats.has(cat) ? 'checked' : ''}
             title="${catTitle(cat)}"
             onchange="onSubCatChange('${top}', '${cat}', this.checked)">
           <label for="cb-${cat}" title="${catTitle(cat)}">
@@ -673,6 +706,17 @@ function updateGroupCb(top) {
   else { cb.checked = false; cb.indeterminate = true; }
 }
 
+function selectStartupCats() {
+  document.querySelectorAll('#cat-list input[type="checkbox"][value]').forEach(cb => {
+    const top = cb.value.split('.')[0].toLowerCase();
+    const on = !startupCats.length || startupCats.includes(top);
+    cb.checked = on; cb.indeterminate = false;
+    if (on) selectedCats.add(cb.value); else selectedCats.delete(cb.value);
+  });
+  document.querySelectorAll('.cat-group').forEach(g => updateGroupCb(g.id.replace('group-', '')));
+  render();
+}
+
 function selectAllCats() {
   document.querySelectorAll('#cat-list input[type="checkbox"]').forEach(cb => {
     cb.checked = true; cb.indeterminate = false;
@@ -716,6 +760,17 @@ async function toggleAuthor(name) {
 // The × button in the sidebar always unfollows; reuse toggleAuthor since the
 // author is guaranteed to be in the followed set at that point.
 function unfollowAuthor(name) { return toggleAuthor(name); }
+
+async function addAuthor() {
+  const el = document.getElementById('author-name');
+  const name = el.value.trim();
+  if (!name) return;
+  const d = await apiPost('/api/authors/follow', {name});
+  followedAuthors = new Set(d.authors);
+  el.value = '';
+  renderFollowedSidebar();
+  render();
+}
 
 /* ── Keywords ── */
 
@@ -899,6 +954,13 @@ function toggleExpand(el, e) {
 
 function expandAll() { document.querySelectorAll('.paper').forEach(p => p.classList.add('expanded')); renderLatex(); }
 function collapseAll() { document.querySelectorAll('.paper').forEach(p => p.classList.remove('expanded')); }
+
+function toggleSection(titleEl) {
+  const body = titleEl.nextElementSibling;
+  const arrow = titleEl.querySelector('.section-arrow');
+  const collapsed = body.classList.toggle('collapsed');
+  arrow.textContent = collapsed ? '▶' : '▼';
+}
 
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('open');
