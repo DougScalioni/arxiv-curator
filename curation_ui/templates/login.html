@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arXiv curator — sign in</title>
+<style>
+  :root {
+    --red: #b31b1b; --red-dark: #440a0a;
+    --border: #cccccc; --text: #000000; --text-dim: #757575;
+    --bg: #ffffff; --bg-alt: #f5f5f5;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Lucida Grande', Helvetica, Arial, Verdana, sans-serif;
+    background: var(--bg-alt); color: var(--text); font-size: 90%;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    justify-content: center;
+  }
+  .identity-bar { background: #222; height: 8px; position: fixed; top: 0; left: 0; right: 0; }
+  .card {
+    background: var(--bg); border: 1px solid var(--border);
+    padding: 2.5rem 2rem; width: 100%; max-width: 380px;
+  }
+  .brand { font-size: 1.3em; font-weight: bold; color: var(--red); margin-bottom: 0.2rem; }
+  .tagline { font-size: 0.82em; color: var(--text-dim); margin-bottom: 1.8rem; }
+  label { display: block; font-size: 0.82em; color: var(--text-dim); margin-bottom: 0.4rem; }
+  input[type="email"] {
+    width: 100%; font-family: inherit; font-size: 0.9em;
+    padding: 0.5em 0.7em; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); outline: none; margin-bottom: 0.9rem;
+  }
+  input[type="email"]:focus { border-color: var(--red); }
+  button[type="submit"] {
+    width: 100%; font-family: inherit; font-size: 0.88em; font-weight: bold;
+    padding: 0.55em 1em; background: var(--red); color: #fff;
+    border: none; cursor: pointer;
+  }
+  button[type="submit"]:hover { background: var(--red-dark); }
+  .message {
+    padding: 0.7rem 0.9rem; font-size: 0.85em; margin-bottom: 1rem;
+  }
+  .message.success { background: #f0faf0; border: 1px solid #b2dfb2; color: #2e7d32; }
+  .message.error   { background: #fdf0f0; border: 1px solid #f5b8b8; color: #b31b1b; }
+</style>
+</head>
+<body>
+<div class="identity-bar"></div>
+
+{% if callback %}
+<!-- Magic link callback — read tokens from URL fragment and send to server -->
+<div class="card">
+  <div class="brand">arXiv curator</div>
+  <div class="tagline">Signing you in…</div>
+</div>
+<script>
+const hash = window.location.hash.substring(1);
+const params = new URLSearchParams(hash);
+const access_token = params.get('access_token');
+const refresh_token = params.get('refresh_token');
+if (access_token) {
+  fetch('/auth/set-session', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({access_token, refresh_token})
+  })
+  .then(r => r.json())
+  .then(d => { window.location.href = d.ok ? '/' : '/login?error=auth_failed'; })
+  .catch(() => { window.location.href = '/login?error=auth_failed'; });
+} else {
+  window.location.href = '/login?error=no_token';
+}
+</script>
+
+{% elif sent %}
+<div class="card">
+  <div class="brand">arXiv curator</div>
+  <div class="message success">
+    Magic link sent to <strong>{{ email }}</strong>.<br>
+    Check your inbox and click the link to sign in.
+  </div>
+</div>
+
+{% else %}
+<div class="card">
+  <div class="brand">arXiv curator</div>
+  <div class="tagline">Sign in with your email — no password needed.</div>
+
+  {% if error %}
+  <div class="message error">{{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/login">
+    <label for="email">Email address</label>
+    <input type="email" id="email" name="email" placeholder="you@example.com" required autofocus>
+    <button type="submit">Send magic link</button>
+  </form>
+</div>
+{% endif %}
+
+</body>
+</html>

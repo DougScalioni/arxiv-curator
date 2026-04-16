@@ -1,0 +1,24 @@
+name: Fetch daily papers
+
+on:
+  schedule:
+    - cron: '0 14 * * 1-5'   # 14:00 UTC Mon–Fri (papers post around 13:00 UTC)
+  workflow_dispatch:           # allow manual run from GitHub UI
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - run: python -m fetcher
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

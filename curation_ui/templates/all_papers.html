@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>arXiv curator — all papers</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="window._katexReady=true"></script>
+<style>
+  :root {
+    --red:       #b31b1b;
+    --red-dark:  #440a0a;
+    --red-light: #f9f0f0;
+    --blue:      #1777bc;
+    --blue-dark: #005e9d;
+    --blue-bg:   #f0f6fc;
+    --green:     #009917;
+    --green-bg:  #f0faf0;
+    --orange:    #d47500;
+    --orange-bg: #fffbf0;
+    --bg:        #ffffff;
+    --bg-alt:    #f5f5f5;
+    --bg-beige:  #f7f5f3;
+    --border:    #cccccc;
+    --text:      #000000;
+    --text-dim:  #757575;
+    --text-mid:  #333333;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Lucida Grande', Helvetica, Arial, Verdana, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 90%;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; color: var(--blue-dark); }
+
+  .identity-bar { background: #222; height: 8px; flex-shrink: 0; }
+
+  .header {
+    background: var(--red);
+    padding: 0.6rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    z-index: 100;
+    border-bottom: 2px solid var(--border);
+    flex-shrink: 0;
+  }
+  .header-brand { font-size: 1.3em; font-weight: bold; color: #fff; white-space: nowrap; }
+  .header-brand span { font-weight: normal; opacity: 0.85; }
+  .header-right { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+  .stats { font-size: 0.95em; color: var(--text); white-space: nowrap; margin-right: 0.25rem; }
+
+  .btn {
+    font-family: inherit; font-size: 0.8em; padding: 0.3em 0.75em;
+    border: 1px solid transparent; background: rgba(255,255,255,0.15);
+    color: #fff; cursor: pointer; border-radius: 2px; transition: background 0.15s;
+    text-decoration: none; display: inline-block; white-space: nowrap;
+  }
+  .btn:hover { background: rgba(255,255,255,0.28); text-decoration: none; color: #fff; }
+  .btn-white { background: #fff; color: var(--red); font-weight: bold; border-color: #fff; }
+  .btn-white:hover { background: #f0f0f0; color: var(--red-dark); }
+
+  /* Search bar */
+  .search-bar {
+    padding: 0.55rem 1.5rem; border-bottom: 1px solid var(--border);
+    background: var(--bg-alt); flex-shrink: 0;
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .search-label { font-size: 0.85em; color: var(--text-dim); white-space: nowrap; }
+  .search-input {
+    flex: 1; font-family: inherit; font-size: 0.85em;
+    padding: 0.3em 0.6em; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(10,10,10,0.08); outline: none; max-width: 480px;
+  }
+  .search-input:focus { border-color: var(--blue); }
+  .search-input::placeholder { color: var(--text-dim); }
+
+  /* Body */
+  .body { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 230px; flex-shrink: 0; border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 0.9rem 0.85rem 2rem; background: var(--bg-alt);
+  }
+
+  .sidebar-section { margin-bottom: 1.1rem; }
+
+  .sidebar-section-title {
+    font-size: 0.75em; font-weight: bold; color: var(--text-mid);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 0.45rem; padding-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sb-row { display: flex; gap: 0.35rem; margin-bottom: 0.45rem; flex-wrap: wrap; }
+
+  .sb-btn {
+    font-family: inherit; font-size: 0.72em; padding: 0.2em 0.5em;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-mid); cursor: pointer; border-radius: 2px; transition: all 0.1s;
+  }
+  .sb-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* Followed authors / keywords filter row */
+  .filter-row {
+    display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.4rem;
+  }
+  .filter-row input[type="checkbox"] { accent-color: var(--blue); cursor: pointer; }
+  .filter-row label { font-size: 0.78em; color: var(--text-mid); cursor: pointer; }
+
+  /* Item lists (authors / keywords) */
+  .item-list { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 0.4rem; }
+
+  .item-row {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.76em; color: var(--text-mid); padding: 0.1rem 0; gap: 0.25rem;
+  }
+  .item-row .item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item-row .item-weight {
+    font-size: 0.85em; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 2px; padding: 0 0.3em;
+    background: var(--bg); min-width: 2.5em; text-align: center;
+  }
+  .item-row .rm-btn {
+    border: none; background: none; cursor: pointer;
+    color: var(--text-dim); font-size: 0.8em; padding: 0.1rem 0.25rem;
+    border-radius: 2px; flex-shrink: 0; line-height: 1;
+  }
+  .item-row .rm-btn:hover { color: var(--red); background: var(--red-light); }
+
+  .empty-note { font-size: 0.75em; color: var(--text-dim); font-style: italic; line-height: 1.4; }
+
+  /* Add keyword form */
+  .add-form { display: flex; gap: 0.3rem; margin-top: 0.3rem; }
+  .add-input {
+    flex: 1; font-family: inherit; font-size: 0.75em;
+    padding: 0.25em 0.4em; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); border-radius: 2px; outline: none; min-width: 0;
+  }
+  .add-input:focus { border-color: var(--blue); }
+  .add-submit {
+    font-family: inherit; font-size: 0.72em; padding: 0.25em 0.5em;
+    border: 1px solid var(--red); background: var(--red); color: #fff;
+    cursor: pointer; border-radius: 2px; white-space: nowrap;
+  }
+  .add-submit:hover { background: var(--red-dark); }
+
+  /* Category list */
+  .cat-group { margin-bottom: 0.2rem; }
+
+  .cat-group-header {
+    display: flex; align-items: center; gap: 0.3rem;
+    padding: 0.1rem 0; cursor: default;
+  }
+  .collapse-btn {
+    border: none; background: none; cursor: pointer; padding: 0;
+    color: var(--text-dim); font-size: 0.75em; line-height: 1;
+    width: 1em; text-align: center; flex-shrink: 0;
+  }
+  .collapse-btn:hover { color: var(--red); }
+  .cat-group-header input[type="checkbox"] { accent-color: var(--red); cursor: pointer; width: 12px; height: 12px; flex-shrink: 0; }
+  .cat-group-label {
+    font-size: 0.78em; font-weight: bold; color: var(--red);
+    cursor: pointer; user-select: none; flex: 1;
+  }
+  .cat-group-label:hover { color: var(--red-dark); text-decoration: underline; }
+  .cat-group-count { font-size: 0.7em; color: var(--text-dim); }
+
+  .cat-group-items { overflow: hidden; }
+  .cat-group-items.collapsed { display: none; }
+
+  .cat-item {
+    display: flex; align-items: center; gap: 0.35rem;
+    padding: 0.07rem 0 0.07rem 1.4rem;
+  }
+  .cat-item input[type="checkbox"] { accent-color: var(--red); cursor: pointer; width: 12px; height: 12px; flex-shrink: 0; }
+  .cat-item label {
+    font-size: 0.75em; color: var(--text-dim); cursor: pointer;
+    display: flex; justify-content: space-between; width: 100%; gap: 0.4rem;
+  }
+  .cat-item input:checked + label { color: var(--text-mid); }
+  .cat-count { color: #bbb; font-size: 0.9em; }
+
+  /* Papers panel */
+  .papers-panel { flex: 1; overflow-y: auto; padding: 0 1.5rem 4rem; }
+
+  .paper {
+    border-bottom: 1px solid var(--border); padding: 0.9rem 0;
+    padding-left: 0.5rem; margin-left: -0.5rem; border-left: 3px solid transparent;
+    cursor: pointer; transition: background 0.1s;
+  }
+  .paper:hover { background: var(--bg-beige); }
+  .paper.has-followed { border-left-color: var(--blue); background: var(--blue-bg); }
+  .paper.has-followed:hover { background: #e8f2fb; }
+  .paper.has-keyword { border-left-color: var(--orange); background: var(--orange-bg); }
+  .paper.has-keyword.has-followed { border-left-color: var(--blue); }
+
+  .paper-title { font-size: 1.1em; font-weight: bold; line-height: 1.35; margin-bottom: 0.2rem; }
+  .paper-title a { color: var(--text); }
+  .paper-title a:hover { color: var(--blue); text-decoration: underline; }
+
+  .paper-authors { font-size: 0.95em; color: var(--text-mid); margin-bottom: 0.15rem; }
+  .author-name { cursor: pointer; transition: color 0.1s; }
+  .author-name:hover { color: var(--blue); text-decoration: underline; }
+  .author-name.followed { color: var(--blue); font-weight: bold; }
+  .authors-full { display: none; }
+  .paper.expanded .authors-short { display: none; }
+  .paper.expanded .authors-full { display: inline; }
+
+  .paper-meta {
+    font-size: 0.83em; color: var(--text-dim);
+    display: flex; flex-wrap: wrap; gap: 0.15rem 0.7rem;
+    margin-bottom: 0.15rem; align-items: baseline;
+  }
+  .primary-cat { font-weight: bold; color: var(--text-mid); }
+
+  .kw-matches {
+    font-size: 0.8em; color: var(--orange); margin-bottom: 0.1rem;
+  }
+  .kw-score { font-weight: bold; margin-right: 0.3em; }
+
+  .paper-abstract {
+    font-size: 0.93em; color: var(--text-mid); margin-top: 0.4rem;
+    display: none; line-height: 1.65;
+    background: var(--bg-beige); padding: 0.75rem 1rem;
+    border-left: 2px solid var(--border);
+  }
+  .paper.expanded .paper-abstract { display: block; }
+
+  .paper-links { display: flex; gap: 0.4rem; margin-top: 0.45rem; }
+  .action-btn {
+    font-family: inherit; font-size: 0.78em; padding: 0.25em 0.6em;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-mid); cursor: pointer; border-radius: 2px;
+    transition: all 0.1s; text-decoration: none; display: inline-block;
+  }
+  .action-btn:hover { border-color: var(--red); color: var(--red); text-decoration: none; }
+
+  .highlight { background: #fff176; border-radius: 1px; }
+  .loading { text-align: center; padding: 3rem 1.5rem; color: var(--text-dim); font-style: italic; }
+
+  /* Bookmark button */
+  .action-btn.bookmarked { border-color: var(--orange); color: var(--orange); background: var(--orange-bg); }
+  .action-btn.bookmarked:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+</style>
+</head>
+<body>
+
+<div class="identity-bar"></div>
+
+<div class="header">
+  <div class="header-brand">arXiv curator <span>// {{ date }}</span></div>
+  <div class="header-right">
+    <a class="btn btn-white" href="/reading-list">reading list <span id="rl-count"></span></a>
+  </div>
+</div>
+
+<div class="search-bar">
+  <span class="search-label">search:</span>
+  <input class="search-input" id="search" type="text"
+    placeholder="keyword1 && keyword2 && …" oninput="onSearch(this.value)">
+  <span class="stats" id="stats"></span>
+  <button class="sb-btn" onclick="expandAll()">expand all</button>
+  <button class="sb-btn" onclick="collapseAll()">collapse all</button>
+</div>
+
+<div class="body">
+  <aside class="sidebar">
+
+    <!-- Followed authors -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">followed authors</div>
+      <div class="filter-row">
+        <input type="checkbox" id="cb-followed" onchange="render()">
+        <label for="cb-followed">show only followed</label>
+      </div>
+      <div class="item-list" id="followed-list">
+        <span class="empty-note">click an author name to follow</span>
+      </div>
+    </div>
+
+    <!-- Keywords -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">keywords</div>
+      <div class="filter-row">
+        <input type="checkbox" id="cb-keywords" onchange="render()">
+        <label for="cb-keywords">show only keyword matches</label>
+      </div>
+      <div class="item-list" id="keyword-list">
+        <span class="empty-note">no keywords yet</span>
+      </div>
+      <div class="add-form">
+        <input class="add-input" id="kw-name" type="text" placeholder="add keyword…"
+          onkeydown="if(event.key==='Enter') addKeyword()">
+        <button class="add-submit" onclick="addKeyword()">+</button>
+      </div>
+    </div>
+
+    <!-- Categories -->
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">categories</div>
+      <div class="sb-row">
+        <button class="sb-btn" onclick="selectAllCats()">all</button>
+        <button class="sb-btn" onclick="selectNoneCats()">none</button>
+        <button class="sb-btn" onclick="expandAllGroups()">expand</button>
+        <button class="sb-btn" onclick="collapseAllGroups()">collapse</button>
+      </div>
+      <div id="cat-list"><span class="empty-note">loading…</span></div>
+    </div>
+
+  </aside>
+
+  <div class="papers-panel">
+    <div id="papers"><div class="loading">loading papers…</div></div>
+  </div>
+</div>
+
+<script>
+const CAT_NAMES = {
+  // Astrophysics
+  "astro-ph":    "Astrophysics",
+  "astro-ph.CO": "Cosmology and Nongalactic Astrophysics",
+  "astro-ph.EP": "Earth and Planetary Astrophysics",
+  "astro-ph.GA": "Astrophysics of Galaxies",
+  "astro-ph.HE": "High Energy Astrophysical Phenomena",
+  "astro-ph.IM": "Instrumentation and Methods for Astrophysics",
+  "astro-ph.SR": "Solar and Stellar Astrophysics",
+  // Condensed Matter
+  "cond-mat":          "Condensed Matter",
+  "cond-mat.dis-nn":   "Disordered Systems and Neural Networks",
+  "cond-mat.mes-hall": "Mesoscale and Nanoscale Physics",
+  "cond-mat.mtrl-sci": "Materials Science",
+  "cond-mat.other":    "Other Condensed Matter",
+  "cond-mat.quant-gas":"Quantum Gases",
+  "cond-mat.soft":     "Soft Condensed Matter",
+  "cond-mat.stat-mech":"Statistical Mechanics",
+  "cond-mat.str-el":   "Strongly Correlated Electrons",
+  "cond-mat.supr-con": "Superconductivity",
+  // General Relativity & Quantum Cosmology
+  "gr-qc": "General Relativity and Quantum Cosmology",
+  // High Energy Physics
+  "hep-ex":  "High Energy Physics — Experiment",
+  "hep-lat": "High Energy Physics — Lattice",
+  "hep-ph":  "High Energy Physics — Phenomenology",
+  "hep-th":  "High Energy Physics — Theory",
+  // Mathematical Physics
+  "math-ph": "Mathematical Physics",
+  // Nonlinear Sciences
+  "nlin":     "Nonlinear Sciences",
+  "nlin.AO":  "Adaptation and Self-Organizing Systems",
+  "nlin.CD":  "Chaotic Dynamics",
+  "nlin.CG":  "Cellular Automata and Lattice Gases",
+  "nlin.PS":  "Pattern Formation and Solitons",
+  "nlin.SI":  "Exactly Solvable and Integrable Systems",
+  // Nuclear
+  "nucl-ex": "Nuclear Experiment",
+  "nucl-th": "Nuclear Theory",
+  // Physics
+  "physics":           "Physics",
+  "physics.acc-ph":    "Accelerator Physics",
+  "physics.ao-ph":     "Atmospheric and Oceanic Physics",
+  "physics.app-ph":    "Applied Physics",
+  "physics.atm-clus":  "Atomic and Molecular Clusters",
+  "physics.atom-ph":   "Atomic Physics",
+  "physics.bio-ph":    "Biological Physics",
+  "physics.chem-ph":   "Chemical Physics",
+  "physics.class-ph":  "Classical Physics",
+  "physics.comp-ph":   "Computational Physics",
+  "physics.data-an":   "Data Analysis, Statistics and Probability",
+  "physics.ed-ph":     "Physics Education",
+  "physics.flu-dyn":   "Fluid Dynamics",
+  "physics.gen-ph":    "General Physics",
+  "physics.geo-ph":    "Geophysics",
+  "physics.hist-ph":   "History and Philosophy of Physics",
+  "physics.ins-det":   "Instrumentation and Detectors",
+  "physics.med-ph":    "Medical Physics",
+  "physics.optics":    "Optics",
+  "physics.plasm-ph":  "Plasma Physics",
+  "physics.pop-ph":    "Popular Physics",
+  "physics.soc-ph":    "Physics and Society",
+  "physics.space-ph":  "Space Physics",
+  // Quantum Physics
+  "quant-ph": "Quantum Physics",
+};
+
+function catTitle(cat) {
+  return CAT_NAMES[cat] || cat;
+}
+
+const DATE = "{{ date }}";
+let papers = [];
+let selectedCats = new Set();
+let followedAuthors = new Set();
+let keywords = [];        // [string]
+let readingListIds = new Set();
+let searchQuery = "";
+let searchTimer = null;
+
+async function load() {
+  const [papersRes, authorsRes, kwRes, rlRes] = await Promise.all([
+    fetch(`/api/papers?date=${DATE}`),
+    fetch('/api/authors'),
+    fetch('/api/keywords'),
+    fetch('/api/reading_list')
+  ]);
+  papers = (await papersRes.json()).papers;
+  followedAuthors = new Set((await authorsRes.json()).authors);
+  keywords = (await kwRes.json()).keywords;
+  readingListIds = new Set((await rlRes.json()).papers.map(p => p.id));
+
+  buildCategoryList();
+  renderFollowedSidebar();
+  renderKeywordSidebar();
+  updateRlCount();
+  render();
+}
+
+/* ── Utilities ── */
+
+// Thin wrapper for JSON POST requests to our Flask API endpoints.
+async function apiPost(endpoint, body) {
+  const r = await fetch(endpoint, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function highlight(text) {
+  if (!searchQuery) return escHtml(text);
+  let out = escHtml(text);
+  searchTerms().forEach(phrase => {
+    const re = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+    out = out.replace(re, m => `<mark class="highlight">${m}</mark>`);
+  });
+  return out;
+}
+
+function renderLatex() {
+  if (!window._katexReady) return;
+  renderMathInElement(document.getElementById('papers'), {
+    delimiters: [
+      {left: '$$', right: '$$', display: true},
+      {left: '$',  right: '$',  display: false},
+      {left: '\\(', right: '\\)', display: false},
+      {left: '\\[', right: '\\]', display: true}
+    ],
+    throwOnError: false
+  });
+}
+
+/* ── Keyword scoring ── */
+
+function scoreKeywords(paper) {
+  if (!keywords.length) return {score: 0, matched: []};
+  const text = ((paper.title || '') + ' ' + (paper.abstract || '')).toLowerCase();
+  const matched = keywords.filter(kw => text.includes(kw.toLowerCase()));
+  return {score: matched.length, matched};
+}
+
+/* ── Category list ── */
+
+function categoryCounts() {
+  const counts = {};
+  papers.forEach(p => (p.categories || []).forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
+  return counts;
+}
+
+function buildCategoryList() {
+  const counts = categoryCounts();
+  const groups = {};
+  Object.entries(counts).forEach(([cat, n]) => {
+    const top = cat.split('.')[0];
+    if (!groups[top]) groups[top] = [];
+    groups[top].push({cat, n});
+  });
+  Object.keys(counts).forEach(c => selectedCats.add(c));
+
+  const el = document.getElementById('cat-list');
+  el.innerHTML = Object.entries(groups)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([top, subs]) => {
+      const groupTotal = subs.reduce((s, x) => s + x.n, 0);
+      const rows = subs.sort((a, b) => b.n - a.n).map(({cat, n}) => `
+        <div class="cat-item" title="${catTitle(cat)}">
+          <input type="checkbox" id="cb-${cat}" value="${cat}" checked
+            title="${catTitle(cat)}"
+            onchange="onSubCatChange('${top}', '${cat}', this.checked)">
+          <label for="cb-${cat}" title="${catTitle(cat)}">
+            <span onclick="event.preventDefault(); soloCategory('${cat}')">${escHtml(cat)}</span><span class="cat-count">${n}</span>
+          </label>
+        </div>`).join('');
+      return `
+      <div class="cat-group" id="group-${top}">
+        <div class="cat-group-header" title="${catTitle(top)}">
+          <button class="collapse-btn" onclick="toggleGroupCollapse('${top}')" title="${catTitle(top)}">▼</button>
+          <input type="checkbox" id="cb-group-${top}" checked
+            title="${catTitle(top)}"
+            onchange="onGroupCbChange('${top}', this.checked)">
+          <span class="cat-group-label" onclick="soloGroup('${top}')" title="${catTitle(top)}">${top}</span>
+          <span class="cat-group-count" title="${catTitle(top)}">${groupTotal}</span>
+        </div>
+        <div class="cat-group-items" id="items-${top}">${rows}</div>
+      </div>`;
+    }).join('');
+}
+
+function toggleGroupCollapse(top) {
+  const items = document.getElementById(`items-${top}`);
+  const btn = document.querySelector(`#group-${top} .collapse-btn`);
+  items.classList.toggle('collapsed');
+  btn.textContent = items.classList.contains('collapsed') ? '▶' : '▼';
+}
+
+function expandAllGroups() {
+  document.querySelectorAll('.cat-group-items').forEach(el => el.classList.remove('collapsed'));
+  document.querySelectorAll('.collapse-btn').forEach(btn => btn.textContent = '▼');
+}
+
+function collapseAllGroups() {
+  document.querySelectorAll('.cat-group-items').forEach(el => el.classList.add('collapsed'));
+  document.querySelectorAll('.collapse-btn').forEach(btn => btn.textContent = '▶');
+}
+
+function soloCategory(cat) {
+  // Deselect all, then select only this one category
+  document.querySelectorAll('#cat-list input[type="checkbox"][value]').forEach(cb => {
+    cb.checked = false;
+    cb.indeterminate = false;
+    selectedCats.delete(cb.value);
+  });
+  selectedCats.add(cat);
+  const cb = document.getElementById(`cb-${cat}`);
+  if (cb) cb.checked = true;
+  document.querySelectorAll('.cat-group').forEach(g => updateGroupCb(g.id.replace('group-', '')));
+  render();
+}
+
+function soloGroup(top) {
+  // Deselect all, then select all subcategories of this group
+  document.querySelectorAll('#cat-list input[type="checkbox"][value]').forEach(cb => {
+    cb.checked = false;
+    cb.indeterminate = false;
+    selectedCats.delete(cb.value);
+  });
+  document.querySelectorAll(`#items-${top} input[type="checkbox"]`).forEach(cb => {
+    cb.checked = true;
+    selectedCats.add(cb.value);
+  });
+  document.querySelectorAll('.cat-group').forEach(g => updateGroupCb(g.id.replace('group-', '')));
+  render();
+}
+
+function onGroupCbChange(top, checked) {
+  setGroupState(top, checked);
+}
+
+function setGroupState(top, checked) {
+  const subs = document.querySelectorAll(`#items-${top} input[type="checkbox"]`);
+  subs.forEach(cb => {
+    cb.checked = checked;
+    if (checked) selectedCats.add(cb.value);
+    else selectedCats.delete(cb.value);
+  });
+  updateGroupCb(top);
+  render();
+}
+
+function onSubCatChange(top, cat, checked) {
+  if (checked) selectedCats.add(cat); else selectedCats.delete(cat);
+  updateGroupCb(top);
+  render();
+}
+
+function updateGroupCb(top) {
+  const cb = document.getElementById(`cb-group-${top}`);
+  if (!cb) return;
+  const subs = [...document.querySelectorAll(`#items-${top} input[type="checkbox"]`)];
+  const checkedCount = subs.filter(s => s.checked).length;
+  if (checkedCount === 0) { cb.checked = false; cb.indeterminate = false; }
+  else if (checkedCount === subs.length) { cb.checked = true; cb.indeterminate = false; }
+  else { cb.checked = false; cb.indeterminate = true; }
+}
+
+function selectAllCats() {
+  document.querySelectorAll('#cat-list input[type="checkbox"]').forEach(cb => {
+    cb.checked = true; cb.indeterminate = false;
+    if (cb.value) selectedCats.add(cb.value);
+  });
+  render();
+}
+
+function selectNoneCats() {
+  document.querySelectorAll('#cat-list input[type="checkbox"]').forEach(cb => {
+    cb.checked = false; cb.indeterminate = false;
+    if (cb.value) selectedCats.delete(cb.value);
+  });
+  render();
+}
+
+/* ── Authors ── */
+
+function renderFollowedSidebar() {
+  const el = document.getElementById('followed-list');
+  if (!followedAuthors.size) {
+    el.innerHTML = `<span class="empty-note">click an author name to follow</span>`;
+    return;
+  }
+  el.innerHTML = [...followedAuthors].sort().map(a => `
+    <div class="item-row">
+      <span class="item-name">${escHtml(a)}</span>
+      <button class="rm-btn" onclick="unfollowAuthor('${escHtml(a)}')" title="unfollow">✕</button>
+    </div>`).join('');
+}
+
+async function toggleAuthor(name) {
+  // Clicking an author's name follows or unfollows depending on current state.
+  const ep = followedAuthors.has(name) ? '/api/authors/unfollow' : '/api/authors/follow';
+  const d = await apiPost(ep, {name});
+  followedAuthors = new Set(d.authors);
+  renderFollowedSidebar();
+  render();
+}
+
+// The × button in the sidebar always unfollows; reuse toggleAuthor since the
+// author is guaranteed to be in the followed set at that point.
+function unfollowAuthor(name) { return toggleAuthor(name); }
+
+/* ── Keywords ── */
+
+function renderKeywordSidebar() {
+  const el = document.getElementById('keyword-list');
+  if (!keywords.length) {
+    el.innerHTML = `<span class="empty-note">no keywords yet</span>`;
+    return;
+  }
+  const rows = keywords.map(name => {
+    const lower = name.toLowerCase();
+    const count = papers.filter(p =>
+      ((p.title||'') + ' ' + (p.abstract||'')).toLowerCase().includes(lower)
+    ).length;
+    return {name, count};
+  }).sort((a, b) => b.count - a.count);
+
+  el.innerHTML = rows.map(({name, count}) => `
+    <div class="item-row">
+      <span class="item-name">${escHtml(name)}</span>
+      <span class="item-weight">${count}</span>
+      <button class="rm-btn" onclick="removeKeyword('${escHtml(name)}')" title="remove">✕</button>
+    </div>`).join('');
+}
+
+async function addKeyword() {
+  const nameEl = document.getElementById('kw-name');
+  const name = nameEl.value.trim().toLowerCase();
+  if (!name) return;
+  const d = await apiPost('/api/keywords/add', {name});
+  keywords = d.keywords;
+  nameEl.value = '';
+  renderKeywordSidebar();
+  render();
+}
+
+async function removeKeyword(name) {
+  const d = await apiPost('/api/keywords/remove', {name});
+  keywords = d.keywords;
+  renderKeywordSidebar();
+  render();
+}
+
+/* ── Reading list ── */
+
+function updateRlCount() {
+  const el = document.getElementById('rl-count');
+  if (el) el.textContent = readingListIds.size ? `(${readingListIds.size})` : '';
+}
+
+async function toggleReadingList(event, paperId) {
+  event.stopPropagation();
+  const ep = readingListIds.has(paperId) ? '/api/reading_list/remove' : '/api/reading_list/add';
+  const body = readingListIds.has(paperId)
+    ? {id: paperId}
+    : {paper: papers.find(p => p.id === paperId)};
+  const d = await apiPost(ep, body);
+  readingListIds = new Set(d.ids);
+  updateRlCount();
+  render();
+}
+
+/* ── Search ── */
+
+function onSearch(val) {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { searchQuery = val.trim().toLowerCase(); render(); }, 180);
+}
+
+function searchTerms() {
+  // Split on && — each segment is a required phrase
+  return searchQuery.split('&&').map(s => s.trim()).filter(Boolean);
+}
+
+function matchesSearch(p) {
+  if (!searchQuery) return true;
+  const hay = [p.title||'', p.abstract||'', ...(p.authors||[]), ...(p.categories||[])].join(' ').toLowerCase();
+  return searchTerms().every(phrase => hay.includes(phrase));
+}
+
+/* ── Filter & sort ── */
+
+function filtered() {
+  const onlyFollowed = document.getElementById('cb-followed')?.checked;
+  const onlyKeywords = document.getElementById('cb-keywords')?.checked;
+
+  let result = papers.filter(p => {
+    if (!(p.categories||[]).some(c => selectedCats.has(c))) return false;
+    if (!matchesSearch(p)) return false;
+    if (onlyFollowed && !(p.authors||[]).some(a => followedAuthors.has(a))) return false;
+    if (onlyKeywords && scoreKeywords(p).score === 0) return false;
+    return true;
+  });
+
+  // When keyword filter is on, sort by keyword score descending
+  if (onlyKeywords) {
+    result = result.map(p => ({p, ks: scoreKeywords(p)}))
+      .sort((a, b) => b.ks.score - a.ks.score)
+      .map(({p}) => p);
+  }
+
+  return result;
+}
+
+/* ── Render ── */
+
+function authorSpans(arr, max) {
+  const shown = arr.slice(0, max);
+  let html = shown.map((a, i) => {
+    const followed = followedAuthors.has(a);
+    const comma = (i < shown.length - 1 || arr.length > max) ? ', ' : '';
+    return `<span class="author-name ${followed ? 'followed' : ''}"
+      onclick="event.stopPropagation();toggleAuthor('${escHtml(a)}')"
+      title="${followed ? 'unfollow' : 'follow'} ${escHtml(a)}">${highlight(a)}</span>${comma}`;
+  }).join('');
+  if (arr.length > max) html += '<span> et al.</span>';
+  return html;
+}
+
+function buildAuthors(arr) {
+  // Collapsed: up to 10 authors. Expanded: up to 30 authors.
+  return `<span class="authors-short">${authorSpans(arr, 10)}</span>`
+       + `<span class="authors-full">${authorSpans(arr, 30)}</span>`;
+}
+
+function render() {
+  const shown = filtered();
+  document.getElementById('stats').textContent = `${shown.length} / ${papers.length} papers`;
+
+  const el = document.getElementById('papers');
+  if (!shown.length) { el.innerHTML = '<div class="loading">no papers match</div>'; return; }
+
+  el.innerHTML = shown.map(p => {
+    const hasFollowed = (p.authors||[]).some(a => followedAuthors.has(a));
+    const {score: kwScore, matched: kwMatched} = scoreKeywords(p);
+    const hasKw = kwScore > 0;
+    const bookmarked = readingListIds.has(p.id);
+
+    const cls = [hasFollowed ? 'has-followed' : '', hasKw ? 'has-keyword' : ''].filter(Boolean).join(' ');
+
+    const authorsHtml = buildAuthors(p.authors||[]);
+
+    const kwHtml = hasKw ? `<div class="kw-matches">
+      <span class="kw-score">keywords:</span>
+      ${kwMatched.map(k => `<span>${escHtml(k)}</span>`).join(', ')}
+    </div>` : '';
+
+    return `
+    <div class="paper ${cls}" id="paper-${p.id}" onclick="toggleExpand(this,event)">
+      <div class="paper-title">
+        <a href="${p.url}" target="_blank" onclick="event.stopPropagation()">${highlight(p.title||'')}</a>
+      </div>
+      <div class="paper-authors">${authorsHtml}</div>
+      <div class="paper-meta">
+        <span class="primary-cat" title="${catTitle(p.primary_category||'')}">${escHtml(p.primary_category||'')}</span>
+        <span>${(p.categories||[]).filter(c=>c!==p.primary_category).map(c=>`<span title="${catTitle(c)}">${escHtml(c)}</span>`).join(' ')}</span>
+        <span>${p.published?p.published.slice(0,10):''}</span>
+      </div>
+      ${kwHtml}
+      <div class="paper-abstract">${highlight(p.abstract||'')}</div>
+      <div class="paper-links">
+        <a class="action-btn" href="${p.url}" target="_blank" onclick="event.stopPropagation()">abstract</a>
+        ${p.pdf_url?`<a class="action-btn" href="${p.pdf_url}" target="_blank" onclick="event.stopPropagation()">pdf</a>`:''}
+        <button class="action-btn ${bookmarked ? 'bookmarked' : ''}"
+          onclick="toggleReadingList(event, '${escHtml(p.id)}')"
+          title="${bookmarked ? 'remove from reading list' : 'add to reading list'}">
+          ${bookmarked ? '★ saved' : '☆ save'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+
+  renderLatex();
+}
+
+function toggleExpand(el, e) {
+  if (e.target.closest('.paper-links') || e.target.tagName==='A' || e.target.classList.contains('author-name')) return;
+  el.classList.toggle('expanded');
+  if (el.classList.contains('expanded')) renderLatex();
+}
+
+function expandAll() { document.querySelectorAll('.paper').forEach(p => p.classList.add('expanded')); renderLatex(); }
+function collapseAll() { document.querySelectorAll('.paper').forEach(p => p.classList.remove('expanded')); }
+
+load();
+</script>
+</body>
+</html>

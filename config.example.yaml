@@ -1,0 +1,26 @@
+# arxiv-curator — copy to config.yaml and edit
+
+categories:
+  - astro-ph
+  - cond-mat
+  - gr-qc
+  - hep-ex
+  - hep-lat
+  - hep-ph
+  - hep-th
+  - math-ph
+  - nlin
+  - nucl-ex
+  - nucl-th
+  - physics
+  - quant-ph
+
+keywords:
+  - dark matter
+  - gravitational waves
+  - black hole
+  - superconductivity
+  - topological
+  - quantum computing
+  - neutrino
+  - machine learning

@@ -1,0 +1,12 @@
+# arxiv-curator 
+
+fixes: 
+- clean up. Lots of folders with stuff that isn't being used. Would be nice to have a diagram describing everything.
+- the followed author is too subtle, I have to think about how to improve this.
+
+some ideas:
+- statistics on authors.
+- citations.
+- email summary of the week.
+- deploy better so I can share this with other people, what's the best way to do that?.
+- list of universities. can't.
