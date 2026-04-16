@@ -87,16 +87,16 @@ def _build_html(kw_papers: list[tuple[dict, list[str]]],
     kw_list = ", ".join(keywords) if keywords else ""
 
     sections = []
-    if kw_papers:
-        rows = "".join(_paper_row(i, p, "keywords: " + ", ".join(m))
-                       for i, (p, m) in enumerate(kw_papers, 1))
-        sections.append(_section(f"Top {len(kw_papers)} keyword matches", rows))
-
     if author_papers:
-        offset = len(kw_papers)
-        rows = "".join(_paper_row(offset + i, p, "by: " + ", ".join(m))
+        rows = "".join(_paper_row(i, p, "by: " + ", ".join(m))
                        for i, (p, m) in enumerate(author_papers, 1))
         sections.append(_section(f"Papers by followed authors ({len(author_papers)})", rows))
+
+    if kw_papers:
+        offset = len(author_papers)
+        rows = "".join(_paper_row(offset + i, p, "keywords: " + ", ".join(m))
+                       for i, (p, m) in enumerate(kw_papers, 1))
+        sections.append(_section(f"Top {len(kw_papers)} keyword matches", rows))
 
     kw_line = f'<div style="font-size:12px;color:#888;margin-top:4px;">Keywords: <span style="color:#555;">{kw_list}</span></div>' if kw_list else ""
 
