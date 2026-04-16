@@ -121,6 +121,7 @@
     color: var(--text-mid); cursor: pointer; border-radius: 2px; transition: all 0.1s;
   }
   .sb-btn:hover { border-color: var(--red); color: var(--red); }
+  .sb-btn-active { border-color: var(--red); color: var(--red); background: var(--red-light); }
 
   /* Followed authors / keywords filter row */
   .filter-row {
@@ -267,6 +268,19 @@
   }
   .action-btn:hover { border-color: var(--red); color: var(--red); text-decoration: none; }
 
+  .group-header-l1 {
+    font-size: 1.25em; font-weight: bold; color: var(--red);
+    padding: 1rem 0 0.3rem; border-bottom: 2px solid var(--red);
+    margin-bottom: 0.1rem;
+  }
+  .group-header-l2 {
+    font-size: 0.88em; font-weight: bold; color: var(--text-mid);
+    padding: 0.7rem 0 0.2rem; border-bottom: 1px solid var(--border);
+    margin-bottom: 0.1rem; padding-left: 0.5rem;
+  }
+  .group-header-l1 .group-count,
+  .group-header-l2 .group-count { font-weight: normal; color: var(--text-dim); font-size: 0.8em; margin-left: 0.5em; }
+
   .highlight { background: #fff176; border-radius: 1px; }
   .loading { text-align: center; padding: 3rem 1.5rem; color: var(--text-dim); font-style: italic; }
 
@@ -344,8 +358,9 @@
     placeholder="keyword1 && keyword2 && …" oninput="onSearch(this.value)">
   <span class="stats" id="stats"></span>
   <span class="search-expand-btns">
-    <button class="sb-btn" onclick="expandAll()">expand all</button>
-    <button class="sb-btn" onclick="collapseAll()">collapse all</button>
+    <button class="sb-btn" id="btn-expand-all" onclick="toggleExpandAll()">expand all</button>
+    <button class="sb-btn" id="btn-sep-fields" onclick="toggleGroup('field')">separate fields</button>
+    <button class="sb-btn" id="btn-sep-type" onclick="toggleGroup('type')">separate type</button>
   </span>
 </div>
 
@@ -427,8 +442,7 @@
           <button class="sb-btn" onclick="selectAllCats()">all</button>
           <button class="sb-btn" onclick="selectNoneCats()">none</button>
           <button class="sb-btn" onclick="selectStartupCats()">startup</button>
-          <button class="sb-btn" onclick="expandAllGroups()">expand</button>
-          <button class="sb-btn" onclick="collapseAllGroups()">collapse</button>
+          <button class="sb-btn" id="btn-groups" onclick="toggleGroupsExpand()">expand</button>
         </div>
         <div id="cat-list"><span class="empty-note">loading…</span></div>
       </div>
@@ -784,14 +798,29 @@ function toggleGroupCollapse(top) {
   btn.textContent = items.classList.contains('collapsed') ? '▶' : '▼';
 }
 
+let groupsExpanded = false;
+
+function toggleGroupsExpand() {
+  groupsExpanded = !groupsExpanded;
+  document.querySelectorAll('.cat-group-items').forEach(el => el.classList.toggle('collapsed', !groupsExpanded));
+  document.querySelectorAll('.collapse-btn').forEach(btn => btn.textContent = groupsExpanded ? '▼' : '▶');
+  document.getElementById('btn-groups').textContent = groupsExpanded ? 'collapse' : 'expand';
+}
+
 function expandAllGroups() {
+  groupsExpanded = true;
   document.querySelectorAll('.cat-group-items').forEach(el => el.classList.remove('collapsed'));
   document.querySelectorAll('.collapse-btn').forEach(btn => btn.textContent = '▼');
+  const btn = document.getElementById('btn-groups');
+  if (btn) btn.textContent = 'collapse';
 }
 
 function collapseAllGroups() {
+  groupsExpanded = false;
   document.querySelectorAll('.cat-group-items').forEach(el => el.classList.add('collapsed'));
   document.querySelectorAll('.collapse-btn').forEach(btn => btn.textContent = '▶');
+  const btn = document.getElementById('btn-groups');
+  if (btn) btn.textContent = 'expand';
 }
 
 function soloCategory(cat) {
@@ -1058,13 +1087,17 @@ function buildAuthors(arr) {
 }
 
 function render() {
+  allExpanded = false;
+  const btn = document.getElementById('btn-expand-all');
+  if (btn) btn.textContent = 'expand all';
+
   const shown = filtered();
   document.getElementById('stats').textContent = `${shown.length} / ${papers.length} papers`;
 
   const el = document.getElementById('papers');
   if (!shown.length) { el.innerHTML = '<div class="loading">no papers match</div>'; return; }
 
-  el.innerHTML = shown.map(p => {
+  function paperHtml(p) {
     const hasFollowed = (p.authors||[]).some(a => followedAuthors.has(a));
     const {score: kwScore, matched: kwMatched} = scoreKeywords(p);
     const hasKw = kwScore > 0;
@@ -1103,7 +1136,25 @@ function render() {
         </button>
       </div>
     </div>`;
-  }).join('');
+  }
+
+  if (groupOrder.length === 0) {
+    el.innerHTML = shown.map(paperHtml).join('');
+  } else if (groupOrder.length === 1) {
+    const [d] = groupOrder;
+    el.innerHTML = sortedGroups(groupBy(shown, p => dimKey(p, d)), d)
+      .map(([key, ps]) => headerHtml(d, key, ps.length, 1) + ps.map(paperHtml).join(''))
+      .join('');
+  } else {
+    const [d1, d2] = groupOrder;
+    el.innerHTML = sortedGroups(groupBy(shown, p => dimKey(p, d1)), d1)
+      .map(([k1, ps1]) =>
+        headerHtml(d1, k1, ps1.length, 1) +
+        sortedGroups(groupBy(ps1, p => dimKey(p, d2)), d2)
+          .map(([k2, ps2]) => headerHtml(d2, k2, ps2.length, 2) + ps2.map(paperHtml).join(''))
+          .join('')
+      ).join('');
+  }
 
   renderLatex();
 }
@@ -1114,8 +1165,77 @@ function toggleExpand(el, e) {
   if (el.classList.contains('expanded')) renderLatex();
 }
 
-function expandAll() { document.querySelectorAll('.paper').forEach(p => p.classList.add('expanded')); renderLatex(); }
-function collapseAll() { document.querySelectorAll('.paper').forEach(p => p.classList.remove('expanded')); }
+let allExpanded = false;
+let groupOrder = []; // ordered list of active grouping dims: 'field' and/or 'type'
+
+const TYPE_ORDER = ['new', 'cross', 'replacement'];
+const TYPE_LABELS = {new: 'New Submissions', cross: 'Cross-lists', replacement: 'Replacements'};
+
+function toggleGroup(dim) {
+  if (groupOrder.includes(dim)) {
+    groupOrder = groupOrder.filter(d => d !== dim);
+  } else {
+    groupOrder.push(dim);
+  }
+  document.getElementById('btn-sep-fields').classList.toggle('sb-btn-active', groupOrder.includes('field'));
+  document.getElementById('btn-sep-type').classList.toggle('sb-btn-active', groupOrder.includes('type'));
+  render();
+}
+
+function groupBy(arr, keyFn) {
+  const map = new Map();
+  arr.forEach(p => {
+    const k = keyFn(p);
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(p);
+  });
+  return map;
+}
+
+function sortedGroups(map, dim) {
+  const entries = [...map.entries()];
+  if (dim === 'type') {
+    return entries.sort((a, b) => TYPE_ORDER.indexOf(a[0]) - TYPE_ORDER.indexOf(b[0]));
+  }
+  return entries.sort((a, b) => b[1].length - a[1].length);
+}
+
+function dimKey(p, dim) {
+  if (dim === 'field') return (p.primary_category || 'other').split('.')[0];
+  if (dim === 'type')  return p.submission_type || 'new';
+}
+
+function dimLabel(dim, key) {
+  if (dim === 'field') return catTitle(key);
+  if (dim === 'type')  return TYPE_LABELS[key] || key;
+}
+
+function headerHtml(dim, key, count, level) {
+  const cls = level === 1 ? 'group-header-l1' : 'group-header-l2';
+  return `<div class="${cls}">${escHtml(dimLabel(dim, key))}<span class="group-count">${count} paper${count !== 1 ? 's' : ''}</span></div>`;
+}
+
+function toggleExpandAll() {
+  allExpanded = !allExpanded;
+  document.querySelectorAll('.paper').forEach(p => p.classList.toggle('expanded', allExpanded));
+  document.getElementById('btn-expand-all').textContent = allExpanded ? 'collapse all' : 'expand all';
+  if (allExpanded) renderLatex();
+}
+
+function expandAll() {
+  allExpanded = true;
+  document.querySelectorAll('.paper').forEach(p => p.classList.add('expanded'));
+  const btn = document.getElementById('btn-expand-all');
+  if (btn) btn.textContent = 'collapse all';
+  renderLatex();
+}
+
+function collapseAll() {
+  allExpanded = false;
+  document.querySelectorAll('.paper').forEach(p => p.classList.remove('expanded'));
+  const btn = document.getElementById('btn-expand-all');
+  if (btn) btn.textContent = 'expand all';
+}
 
 function toggleSection(titleEl) {
   const body = titleEl.nextElementSibling;
