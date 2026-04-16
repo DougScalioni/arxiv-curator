@@ -303,9 +303,11 @@ def _cleanup_old_papers():
 
 def _start_scheduler():
     from fetcher.fetch import main as fetch_main
+    from utils.email import send_weekly_digest
     scheduler = BackgroundScheduler()
     scheduler.add_job(fetch_main, "cron", day_of_week="mon-fri", hour=15, minute=0)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=16, minute=0)
+    scheduler.add_job(send_weekly_digest, "cron", day_of_week="fri", hour=17, minute=0)
     scheduler.start()
 
 
