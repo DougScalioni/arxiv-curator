@@ -257,6 +257,53 @@
   /* Bookmark button */
   .action-btn.bookmarked { border-color: var(--orange); color: var(--orange); background: var(--orange-bg); }
   .action-btn.bookmarked:hover { border-color: var(--red); color: var(--red); background: var(--red-light); }
+
+  /* Sidebar drawer toggle (hidden on desktop) */
+  .sidebar-toggle {
+    display: none;
+    font-family: inherit; font-size: 0.82em; padding: 0.3em 0.65em;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-mid); cursor: pointer; border-radius: 2px; white-space: nowrap; flex-shrink: 0;
+  }
+
+  /* Backdrop for mobile sidebar */
+  .sidebar-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.38); z-index: 299;
+  }
+
+  @media (max-width: 700px) {
+    body { height: 100dvh; font-size: 95%; }
+
+    .identity-bar { height: 4px; }
+
+    .header { padding: 0.5rem 0.9rem; flex-wrap: wrap; gap: 0.4rem; }
+    .header-brand { font-size: 1.1em; }
+
+    .search-bar { padding: 0.4rem 0.75rem; gap: 0.4rem; flex-wrap: wrap; }
+    .search-label { display: none; }
+    .search-input { max-width: none; min-width: 0; }
+    .search-expand-btns { display: none; }
+    .sidebar-toggle { display: block; }
+
+    .sidebar {
+      position: fixed;
+      left: -105%; top: 0; bottom: 0;
+      height: 100%; width: 82vw; max-width: 300px;
+      z-index: 300;
+      transition: left 0.22s ease;
+      box-shadow: 3px 0 14px rgba(0,0,0,0.18);
+    }
+    .sidebar.open { left: 0; }
+    .sidebar-backdrop.open { display: block; }
+
+    .papers-panel { padding: 0 0.9rem 4rem; }
+
+    .paper { padding: 0.8rem 0; }
+    .paper-title { font-size: 1em; }
+    .paper-abstract { padding: 0.6rem 0.75rem; }
+    .paper-links { flex-wrap: wrap; }
+  }
 </style>
 </head>
 <body>
@@ -273,13 +320,18 @@
 </div>
 
 <div class="search-bar">
+  <button class="sidebar-toggle" onclick="toggleSidebar()">filters</button>
   <span class="search-label">search:</span>
   <input class="search-input" id="search" type="text"
     placeholder="keyword1 && keyword2 && …" oninput="onSearch(this.value)">
   <span class="stats" id="stats"></span>
-  <button class="sb-btn" onclick="expandAll()">expand all</button>
-  <button class="sb-btn" onclick="collapseAll()">collapse all</button>
+  <span class="search-expand-btns">
+    <button class="sb-btn" onclick="expandAll()">expand all</button>
+    <button class="sb-btn" onclick="collapseAll()">collapse all</button>
+  </span>
 </div>
+
+<div class="sidebar-backdrop" onclick="toggleSidebar()"></div>
 
 <div class="body">
   <aside class="sidebar">
@@ -846,6 +898,11 @@ function toggleExpand(el, e) {
 
 function expandAll() { document.querySelectorAll('.paper').forEach(p => p.classList.add('expanded')); renderLatex(); }
 function collapseAll() { document.querySelectorAll('.paper').forEach(p => p.classList.remove('expanded')); }
+
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('open');
+  document.querySelector('.sidebar-backdrop').classList.toggle('open');
+}
 
 load();
 </script>
