@@ -1,16 +1,21 @@
-app = "arxiv-curator"
-primary_region = "iad"
+# fly.toml app configuration file generated for arxiv-curator on 2026-04-16T15:28:21-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'arxiv-curator'
+primary_region = 'ord'
 
 [build]
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
 
 [[vm]]
-  memory = "256mb"
-  cpu_kind = "shared"
+  memory = '256mb'
   cpus = 1
+  memory_mb = 256

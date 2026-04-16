@@ -12,8 +12,11 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from utils.config import today_str
 from utils.supabase_client import get_admin_client, get_anon_client
 
+from datetime import timedelta
+
 app = Flask(__name__, template_folder="templates")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
+app.permanent_session_lifetime = timedelta(days=30)
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -112,6 +115,7 @@ def set_session():
         client = get_anon_client()
         response = client.auth.get_user(access_token)
         if response.user:
+            session.permanent = True
             session["access_token"] = access_token
             session["refresh_token"] = refresh_token
             return jsonify({"ok": True})
