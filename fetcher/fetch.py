@@ -37,7 +37,7 @@ def get_new_ids(category: str) -> dict[str, list[str]]:
         head = part[:120].lower()
         if "new submission" in head:
             current = "new"
-        elif "cross-list" in head or "cross list" in head:
+        elif "cross" in head:
             current = "cross"
         elif "replacement" in head:
             current = "replacement"

@@ -362,7 +362,7 @@ def _start_scheduler():
     chicago = ZoneInfo("America/Chicago")
     scheduler = BackgroundScheduler(timezone=chicago)
     # arxiv releases at 20:00 ET = 19:00 CT; fetch sun-thu covers mon-fri listings
-    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="sun-thu", hour=19, minute=5)
+    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="sun,mon,tue,wed,thu", hour=19, minute=5)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=10, minute=0)
     scheduler.add_job(send_weekly_digest, "cron", hour=11, minute=0)
     scheduler.start()

@@ -1100,7 +1100,7 @@ function render() {
         <span class="primary-cat" title="${catTitle(p.primary_category||'')}">${escHtml(p.primary_category||'')}</span>
         <span>${(p.categories||[]).filter(c=>c!==p.primary_category).map(c=>`<span title="${catTitle(c)}">${escHtml(c)}</span>`).join(' ')}</span>
         <span>${p.published?p.published.slice(0,10):''}</span>
-        ${(()=>{const t=submissionType; const label={new:'new',cross:'cross-list',replacement:'replacement'}[t]||t; return `<span class="type-badge type-${t}">${label}</span>`;})()}
+        ${(()=>{const t=submissionType; const label={new:'new',cross:'cross',replacement:'replacement'}[t]||t; return `<span class="type-badge type-${t}">${label}</span>`;})()}
       </div>
       ${kwHtml}
       <div class="paper-abstract">${highlight(p.abstract||'')}</div>
@@ -1157,7 +1157,7 @@ let groupOrder = []; // ordered list of active grouping dims: 'field' and/or 'ty
 let collapsedGroups = new Set(); // group ids currently collapsed
 
 const TYPE_ORDER = ['new', 'cross', 'replacement'];
-const TYPE_LABELS = {new: 'New Submissions', cross: 'Cross-lists', replacement: 'Replacements'};
+const TYPE_LABELS = {new: 'New Submissions', cross: 'Cross Submissions', replacement: 'Replacement Submissions'};
 
 const ARXIV_FIELD_ORDER = [
   'astro-ph','cond-mat','gr-qc','hep-ex','hep-lat','hep-ph','hep-th',
