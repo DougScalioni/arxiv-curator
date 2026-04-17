@@ -236,6 +236,26 @@
   .author-name { cursor: pointer; transition: color 0.1s; }
   .author-name:hover { color: var(--blue); text-decoration: underline; }
   .author-name.followed { color: var(--blue); font-weight: bold; }
+
+  .author-menu {
+    position: fixed; z-index: 500;
+    background: var(--bg); border: 1px solid var(--border);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.15); border-radius: 3px;
+    min-width: 160px; padding: 0.25rem 0;
+    font-size: 0.85em;
+  }
+  .author-menu-name {
+    padding: 0.35rem 0.75rem; font-weight: bold; color: var(--text-mid);
+    border-bottom: 1px solid var(--border); font-size: 0.9em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+  }
+  .author-menu-item {
+    display: block; width: 100%; text-align: left;
+    padding: 0.35rem 0.75rem; background: none; border: none;
+    font-family: inherit; font-size: 1em; color: var(--text-mid);
+    cursor: pointer; white-space: nowrap;
+  }
+  .author-menu-item:hover { background: var(--bg-alt); color: var(--red); }
   .authors-full { display: none; }
   .paper.expanded .authors-short { display: none; }
   .paper.expanded .authors-full { display: inline; }
@@ -915,8 +935,61 @@ function renderFollowedSidebar() {
     </div>`).join('');
 }
 
-async function toggleAuthor(name) {
-  // Clicking an author's name follows or unfollows depending on current state.
+let _authorMenu = null;
+
+function openAuthorMenu(event, name) {
+  event.stopPropagation();
+  closeAuthorMenu();
+
+  const menu = document.createElement('div');
+  menu.className = 'author-menu';
+  menu.id = 'author-menu';
+
+  const title = document.createElement('div');
+  title.className = 'author-menu-name';
+  title.textContent = name;
+  menu.appendChild(title);
+
+  const followBtn = document.createElement('button');
+  followBtn.className = 'author-menu-item';
+  followBtn.textContent = followedAuthors.has(name) ? 'Unfollow' : 'Follow';
+  followBtn.onclick = (e) => { e.stopPropagation(); doFollowToggle(name); closeAuthorMenu(); };
+  menu.appendChild(followBtn);
+
+  const scholarBtn = document.createElement('button');
+  scholarBtn.className = 'author-menu-item';
+  scholarBtn.textContent = 'Scholar';
+  scholarBtn.onclick = (e) => { e.stopPropagation(); window.open(`https://scholar.google.com/scholar?q=author:"${encodeURIComponent(name)}"`, '_blank'); closeAuthorMenu(); };
+  menu.appendChild(scholarBtn);
+
+  const inspireBtn = document.createElement('button');
+  inspireBtn.className = 'author-menu-item';
+  inspireBtn.textContent = 'Inspire';
+  inspireBtn.onclick = (e) => { e.stopPropagation(); window.open(`https://inspirehep.net/authors?sort=bestmatch&size=5&page=1&q=name:"${encodeURIComponent(name)}"`, '_blank'); closeAuthorMenu(); };
+  menu.appendChild(inspireBtn);
+
+  const arxivBtn = document.createElement('button');
+  arxivBtn.className = 'author-menu-item';
+  arxivBtn.textContent = 'arXiv';
+  arxivBtn.onclick = (e) => { e.stopPropagation(); window.open(`https://arxiv.org/search/?searchtype=author&query=${encodeURIComponent(name)}`, '_blank'); closeAuthorMenu(); };
+  menu.appendChild(arxivBtn);
+
+  // Position near the click
+  document.body.appendChild(menu);
+  const x = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
+  const y = Math.min(event.clientY + 4, window.innerHeight - menu.offsetHeight - 8);
+  menu.style.left = x + 'px';
+  menu.style.top  = y + 'px';
+
+  _authorMenu = menu;
+  setTimeout(() => document.addEventListener('click', closeAuthorMenu, {once: true}), 0);
+}
+
+function closeAuthorMenu() {
+  if (_authorMenu) { _authorMenu.remove(); _authorMenu = null; }
+}
+
+async function doFollowToggle(name) {
   const ep = followedAuthors.has(name) ? '/api/authors/unfollow' : '/api/authors/follow';
   const d = await apiPost(ep, {name});
   followedAuthors = new Set(d.authors);
@@ -924,9 +997,7 @@ async function toggleAuthor(name) {
   render();
 }
 
-// The × button in the sidebar always unfollows; reuse toggleAuthor since the
-// author is guaranteed to be in the followed set at that point.
-function unfollowAuthor(name) { return toggleAuthor(name); }
+function unfollowAuthor(name) { return doFollowToggle(name); }
 
 async function addAuthor() {
   const el = document.getElementById('author-name');
@@ -1049,8 +1120,8 @@ function authorSpans(arr, max) {
     const followed = followedAuthors.has(a);
     const comma = (i < shown.length - 1 || arr.length > max) ? ', ' : '';
     return `<span class="author-name ${followed ? 'followed' : ''}"
-      onclick="event.stopPropagation();toggleAuthor('${escHtml(a)}')"
-      title="${followed ? 'unfollow' : 'follow'} ${escHtml(a)}">${highlight(a)}</span>${comma}`;
+      onclick="openAuthorMenu(event,'${escHtml(a)}')"
+      title="${escHtml(a)}">${highlight(a)}</span>${comma}`;
   }).join('');
   if (arr.length > max) html += '<span> et al.</span>';
   return html;
