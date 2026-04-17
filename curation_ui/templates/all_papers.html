@@ -339,6 +339,7 @@
     .search-label { display: none; }
     .search-input { max-width: none; min-width: 0; }
     .search-expand-btns { display: none; }
+    .search-group-btns { display: flex; gap: 0.3rem; flex-wrap: wrap; }
     .sidebar-toggle { display: block; }
 
     .sidebar {
@@ -384,6 +385,8 @@
   <span class="stats" id="stats"></span>
   <span class="search-expand-btns">
     <button class="sb-btn" id="btn-expand-all" onclick="toggleExpandAll()">expand all</button>
+  </span>
+  <span class="search-group-btns">
     <button class="sb-btn sb-btn-group" id="btn-sep-fields" onclick="toggleGroup('field')">Fields</button>
     <button class="sb-btn sb-btn-group" id="btn-sep-type" onclick="toggleGroup('type')">Submission type</button>
   </span>
@@ -448,6 +451,8 @@
           <button class="sb-btn" onclick="selectStartupCats()">startup</button>
           <button class="sb-btn" id="btn-groups" onclick="toggleGroupsExpand()">expand</button>
         </div>
+        <input class="add-input" id="cat-search" type="text" placeholder="search categories…"
+          oninput="onCatSearch(this.value)" style="width:100%;margin-bottom:0.4rem;">
         <div id="cat-list"><span class="empty-note">loading…</span></div>
       </div>
     </div>
@@ -887,6 +892,28 @@ function updateGroupCb(top) {
   else { cb.checked = false; cb.indeterminate = true; }
 }
 
+function onCatSearch(val) {
+  const q = val.trim().toLowerCase();
+  document.querySelectorAll('.cat-group').forEach(group => {
+    const top = group.id.replace('group-', '');
+    let anyVisible = false;
+    group.querySelectorAll('.cat-item').forEach(item => {
+      const cb = item.querySelector('input[type="checkbox"]');
+      const cat = cb ? cb.value : '';
+      const matches = !q || cat.toLowerCase().includes(q) || catTitle(cat).toLowerCase().includes(q);
+      item.style.display = matches ? '' : 'none';
+      if (matches) anyVisible = true;
+    });
+    group.style.display = anyVisible ? '' : 'none';
+    // Expand groups when searching so results are visible
+    if (q && anyVisible) {
+      document.getElementById(`items-${top}`)?.classList.remove('collapsed');
+      const btn = group.querySelector('.collapse-btn');
+      if (btn) btn.textContent = '▼';
+    }
+  });
+}
+
 function matchesStartup(cat) {
   if (!startupCats.length) return true;
   const c = cat.toLowerCase();
@@ -965,7 +992,7 @@ function openAuthorMenu(event, name) {
   const inspireBtn = document.createElement('button');
   inspireBtn.className = 'author-menu-item';
   inspireBtn.textContent = 'Inspire';
-  inspireBtn.onclick = (e) => { e.stopPropagation(); window.open(`https://inspirehep.net/authors?sort=bestmatch&size=5&page=1&q=name:"${encodeURIComponent(name)}"`, '_blank'); closeAuthorMenu(); };
+  inspireBtn.onclick = (e) => { e.stopPropagation(); window.open(`https://inspirehep.net/authors?sort=bestmatch&size=5&page=1&q=${encodeURIComponent(name)}`, '_blank'); closeAuthorMenu(); };
   menu.appendChild(inspireBtn);
 
   const arxivBtn = document.createElement('button');
