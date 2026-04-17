@@ -10,7 +10,9 @@ from datetime import date, timedelta
 def _get_week_papers() -> list[dict]:
     from utils.supabase_client import get_admin_client
     db = get_admin_client()
-    today = date.today()
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("America/Chicago")).date()
     dates = [(today - timedelta(days=i)).isoformat() for i in range(7)]
     result = db.table("papers").select("papers").in_("date", dates).execute()
     seen: set[str] = set()

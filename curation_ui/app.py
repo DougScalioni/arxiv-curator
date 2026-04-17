@@ -357,11 +357,14 @@ def _cleanup_old_papers():
 
 
 def _start_scheduler():
+    from zoneinfo import ZoneInfo
     from utils.email import send_weekly_digest
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="mon-fri", hour=0, minute=1)
-    scheduler.add_job(_cleanup_old_papers, "cron", hour=16, minute=0)
-    scheduler.add_job(send_weekly_digest, "cron", hour=17, minute=0)
+    chicago = ZoneInfo("America/Chicago")
+    scheduler = BackgroundScheduler(timezone=chicago)
+    # arxiv releases at 20:00 ET = 19:00 CT; fetch sun-thu covers mon-fri listings
+    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="sun-thu", hour=19, minute=5)
+    scheduler.add_job(_cleanup_old_papers, "cron", hour=10, minute=0)
+    scheduler.add_job(send_weekly_digest, "cron", hour=11, minute=0)
     scheduler.start()
 
 

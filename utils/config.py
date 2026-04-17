@@ -31,6 +31,7 @@ def ensure_dirs():
 
 
 def today_str():
-    """Today's date as YYYY-MM-DD."""
-    from datetime import date
-    return date.today().isoformat()
+    """Today's date as YYYY-MM-DD in Chicago time."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return datetime.now(ZoneInfo("America/Chicago")).date().isoformat()

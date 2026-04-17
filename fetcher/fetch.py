@@ -108,12 +108,10 @@ def main():
     print(f"Fetching today's new arxiv papers for {date}...")
     print(f"Categories: {', '.join(categories)}\n")
 
-    # Collect all new IDs across categories, tracking submission type per paper.
-    # If a paper appears in multiple categories, highest-priority type wins
-    # (new > cross > replacement).
+    # Collect all IDs and record every (category, type) appearance per paper.
     all_ids: list[str] = []
     seen: set[str] = set()
-    type_map: dict[str, str] = {}  # base_id -> submission type
+    appearances_map: dict[str, list[dict]] = {}  # base_id -> [{category, type}, ...]
 
     for cat in categories:
         try:
@@ -129,9 +127,10 @@ def main():
                 if base not in seen:
                     seen.add(base)
                     all_ids.append(id_)
-                    type_map[base] = type_
-                elif _TYPE_PRIORITY[type_] < _TYPE_PRIORITY.get(type_map[base], 99):
-                    type_map[base] = type_
+                    appearances_map[base] = []
+                app = {"category": cat, "type": type_}
+                if app not in appearances_map[base]:
+                    appearances_map[base].append(app)
         time.sleep(1)  # be polite between listing page requests
 
     print(f"\n{len(all_ids)} unique papers across all categories")
@@ -145,7 +144,13 @@ def main():
 
     for p in papers:
         base = re.sub(r'v\d+$', '', p["id"])
-        p["submission_type"] = type_map.get(base, "new")
+        apps = appearances_map.get(base, [])
+        p["appearances"] = apps
+        # submission_type = highest-priority type across all appearances (for flat view)
+        if apps:
+            p["submission_type"] = min(apps, key=lambda a: _TYPE_PRIORITY.get(a["type"], 99))["type"]
+        else:
+            p["submission_type"] = "new"
 
     db = get_admin_client()
     db.table("papers").upsert({"date": date, "papers": papers}).execute()

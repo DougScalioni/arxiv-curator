@@ -1073,7 +1073,9 @@ function render() {
   const el = document.getElementById('papers');
   if (!shown.length) { el.innerHTML = '<div class="loading">no papers match</div>'; return; }
 
-  function paperHtml(p) {
+  function paperHtml(entry) {
+    const p = entry.p || entry;
+    const submissionType = entry.type || p.submission_type || 'new';
     const hasFollowed = (p.authors||[]).some(a => followedAuthors.has(a));
     const {score: kwScore, matched: kwMatched} = scoreKeywords(p);
     const hasKw = kwScore > 0;
@@ -1098,7 +1100,7 @@ function render() {
         <span class="primary-cat" title="${catTitle(p.primary_category||'')}">${escHtml(p.primary_category||'')}</span>
         <span>${(p.categories||[]).filter(c=>c!==p.primary_category).map(c=>`<span title="${catTitle(c)}">${escHtml(c)}</span>`).join(' ')}</span>
         <span>${p.published?p.published.slice(0,10):''}</span>
-        ${(()=>{const t=p.submission_type||'new'; const label={new:'new',cross:'cross-list',replacement:'replacement'}[t]||t; return `<span class="type-badge type-${t}">${label}</span>`;})()}
+        ${(()=>{const t=submissionType; const label={new:'new',cross:'cross-list',replacement:'replacement'}[t]||t; return `<span class="type-badge type-${t}">${label}</span>`;})()}
       </div>
       ${kwHtml}
       <div class="paper-abstract">${highlight(p.abstract||'')}</div>
@@ -1114,28 +1116,31 @@ function render() {
     </div>`;
   }
 
+  const entries = expandForGrouping(shown);
+
   if (groupOrder.length === 0) {
-    el.innerHTML = shown.map(paperHtml).join('');
+    el.innerHTML = entries.map(paperHtml).join('');
   } else if (groupOrder.length === 1) {
     const [d] = groupOrder;
-    el.innerHTML = sortedGroups(groupBy(shown, p => dimKey(p, d)), d)
-      .map(([key, ps]) =>
-        headerHtml(d, key, ps.length, 1) +
-        groupBodyOpen(d, key) + ps.map(paperHtml).join('') + '</div>'
+    el.innerHTML = sortedGroups(groupBy(entries, e => dimKeyEntry(e, d)), d)
+      .map(([key, es]) =>
+        headerHtml(d, key, es.length, 1) +
+        groupBodyOpen(d, key) + es.map(paperHtml).join('') + '</div>'
       ).join('');
   } else {
     const [d1, d2] = groupOrder;
-    el.innerHTML = sortedGroups(groupBy(shown, p => dimKey(p, d1)), d1)
-      .map(([k1, ps1]) =>
-        headerHtml(d1, k1, ps1.length, 1) +
-        groupBodyOpen(d1, k1) +
-        sortedGroups(groupBy(ps1, p => dimKey(p, d2)), d2)
-          .map(([k2, ps2]) =>
-            headerHtml(d2, k2, ps2.length, 2) +
-            groupBodyOpen(d2, k2) + ps2.map(paperHtml).join('') + '</div>'
-          ).join('') +
-        '</div>'
-      ).join('');
+    el.innerHTML = sortedGroups(groupBy(entries, e => dimKeyEntry(e, d1)), d1)
+      .map(([k1, es1]) => {
+        const pid = groupId(d1, k1);
+        return headerHtml(d1, k1, es1.length, 1) +
+          groupBodyOpen(d1, k1) +
+          sortedGroups(groupBy(es1, e => dimKeyEntry(e, d2)), d2)
+            .map(([k2, es2]) =>
+              headerHtml(d2, k2, es2.length, 2, pid) +
+              groupBodyOpen(d2, k2, pid) + es2.map(paperHtml).join('') + '</div>'
+            ).join('') +
+          '</div>';
+      }).join('');
   }
 
   renderLatex();
@@ -1208,22 +1213,60 @@ function dimKey(p, dim) {
   if (dim === 'type')  return p.submission_type || 'new';
 }
 
+function dimKeyEntry(entry, dim) {
+  return dim === 'field' ? entry.field : entry.type;
+}
+
+function fieldHasSelectedCat(field) {
+  for (const c of selectedCats) { if (c.split('.')[0] === field) return true; }
+  return false;
+}
+
+function expandForGrouping(papers) {
+  if (!groupOrder.length) {
+    return papers.map(p => ({p, field: dimKey(p, 'field'), type: p.submission_type || 'new'}));
+  }
+  const result = [];
+  papers.forEach(p => {
+    const apps = (p.appearances && p.appearances.length)
+      ? p.appearances
+      : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
+
+    const seen = new Set();
+    apps.forEach(app => {
+      const field = (app.category || 'other').split('.')[0];
+      const type  = app.type || 'new';
+
+      // Skip appearances whose field has no selected category
+      if (groupOrder.includes('field') && !fieldHasSelectedCat(field)) return;
+
+      // Dedup by the active grouping dimensions only
+      const key = groupOrder.map(d => d === 'field' ? field : type).join('|');
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({p, field, type});
+      }
+    });
+  });
+  return result;
+}
+
 function dimLabel(dim, key) {
   if (dim === 'field') return catTitle(key);
   if (dim === 'type')  return TYPE_LABELS[key] || key;
 }
 
-function groupId(dim, key) { return `grp-${dim}-${escHtml(key)}`; }
+function groupId(dim, key, parentId='') { return parentId ? `${parentId}__${dim}-${key}` : `grp-${dim}-${key}`; }
 
-function headerHtml(dim, key, count, level) {
+function headerHtml(dim, key, count, level, parentId='') {
   const cls = level === 1 ? 'group-header-l1' : 'group-header-l2';
-  const gid = groupId(dim, key);
+  const gid = groupId(dim, key, parentId);
   const arrow = collapsedGroups.has(gid) ? '▶' : '▼';
   return `<div class="${cls}" onclick="toggleGroupCollapse('${gid}')"><span class="group-arrow">${arrow}</span>${escHtml(dimLabel(dim, key))}<span class="group-count">${count} paper${count !== 1 ? 's' : ''}</span></div>`;
 }
 
-function groupBodyOpen(dim, key) {
-  const gid = groupId(dim, key);
+function groupBodyOpen(dim, key, parentId='') {
+  const gid = groupId(dim, key, parentId);
   return `<div id="${gid}"${collapsedGroups.has(gid) ? ' style="display:none"' : ''}>`;
 }
 
