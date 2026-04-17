@@ -122,6 +122,7 @@
   }
   .sb-btn:hover { border-color: var(--red); color: var(--red); }
   .sb-btn-active { border-color: var(--red); color: var(--red); background: var(--red-light); }
+  .sb-btn-group { font-size: 0.88em; }
 
   /* Followed authors / keywords filter row */
   .filter-row {
@@ -268,6 +269,10 @@
   }
   .action-btn:hover { border-color: var(--red); color: var(--red); text-decoration: none; }
 
+  .group-header-l1, .group-header-l2 { cursor: pointer; user-select: none; }
+  .group-header-l1:hover { color: var(--red-dark); }
+  .group-header-l2:hover { color: var(--text); }
+  .group-arrow { font-size: 0.7em; margin-right: 0.35em; color: var(--text-dim); }
   .group-header-l1 {
     font-size: 1.25em; font-weight: bold; color: var(--red);
     padding: 1rem 0 0.3rem; border-bottom: 2px solid var(--red);
@@ -359,8 +364,8 @@
   <span class="stats" id="stats"></span>
   <span class="search-expand-btns">
     <button class="sb-btn" id="btn-expand-all" onclick="toggleExpandAll()">expand all</button>
-    <button class="sb-btn" id="btn-sep-fields" onclick="toggleGroup('field')">separate fields</button>
-    <button class="sb-btn" id="btn-sep-type" onclick="toggleGroup('type')">separate type</button>
+    <button class="sb-btn sb-btn-group" id="btn-sep-fields" onclick="toggleGroup('field')">Fields</button>
+    <button class="sb-btn sb-btn-group" id="btn-sep-type" onclick="toggleGroup('type')">Submission type</button>
   </span>
 </div>
 
@@ -407,27 +412,6 @@
           <input class="add-input" id="kw-name" type="text" placeholder="add keyword…"
             onkeydown="if(event.key==='Enter') addKeyword()">
           <button class="add-submit" onclick="addKeyword()">+</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Submission type -->
-    <div class="sidebar-section">
-      <div class="sidebar-section-title" onclick="toggleSection(this)">
-        submission type <span class="section-arrow">▼</span>
-      </div>
-      <div class="sidebar-section-body">
-        <div class="filter-row">
-          <input type="checkbox" id="cb-type-new" checked onchange="render()">
-          <label for="cb-type-new">new submissions</label>
-        </div>
-        <div class="filter-row">
-          <input type="checkbox" id="cb-type-cross" checked onchange="render()">
-          <label for="cb-type-cross">cross-lists</label>
-        </div>
-        <div class="filter-row">
-          <input type="checkbox" id="cb-type-replacement" checked onchange="render()">
-          <label for="cb-type-replacement">replacements</label>
         </div>
       </div>
     </div>
@@ -1039,19 +1023,11 @@ function matchesSearch(p) {
 function filtered() {
   const onlyFollowed = document.getElementById('cb-followed')?.checked;
   const onlyKeywords = document.getElementById('cb-keywords')?.checked;
-  const showNew         = document.getElementById('cb-type-new')?.checked ?? true;
-  const showCross       = document.getElementById('cb-type-cross')?.checked ?? true;
-  const showReplacement = document.getElementById('cb-type-replacement')?.checked ?? true;
-
   let result = papers.filter(p => {
     if (!(p.categories||[]).some(c => selectedCats.has(c))) return false;
     if (!matchesSearch(p)) return false;
     if (onlyFollowed && !(p.authors||[]).some(a => followedAuthors.has(a))) return false;
     if (onlyKeywords && scoreKeywords(p).score === 0) return false;
-    const t = p.submission_type || 'new';
-    if (t === 'new'         && !showNew)         return false;
-    if (t === 'cross'       && !showCross)       return false;
-    if (t === 'replacement' && !showReplacement) return false;
     return true;
   });
 
@@ -1143,16 +1119,22 @@ function render() {
   } else if (groupOrder.length === 1) {
     const [d] = groupOrder;
     el.innerHTML = sortedGroups(groupBy(shown, p => dimKey(p, d)), d)
-      .map(([key, ps]) => headerHtml(d, key, ps.length, 1) + ps.map(paperHtml).join(''))
-      .join('');
+      .map(([key, ps]) =>
+        headerHtml(d, key, ps.length, 1) +
+        groupBodyOpen(d, key) + ps.map(paperHtml).join('') + '</div>'
+      ).join('');
   } else {
     const [d1, d2] = groupOrder;
     el.innerHTML = sortedGroups(groupBy(shown, p => dimKey(p, d1)), d1)
       .map(([k1, ps1]) =>
         headerHtml(d1, k1, ps1.length, 1) +
+        groupBodyOpen(d1, k1) +
         sortedGroups(groupBy(ps1, p => dimKey(p, d2)), d2)
-          .map(([k2, ps2]) => headerHtml(d2, k2, ps2.length, 2) + ps2.map(paperHtml).join(''))
-          .join('')
+          .map(([k2, ps2]) =>
+            headerHtml(d2, k2, ps2.length, 2) +
+            groupBodyOpen(d2, k2) + ps2.map(paperHtml).join('') + '</div>'
+          ).join('') +
+        '</div>'
       ).join('');
   }
 
@@ -1167,9 +1149,31 @@ function toggleExpand(el, e) {
 
 let allExpanded = false;
 let groupOrder = []; // ordered list of active grouping dims: 'field' and/or 'type'
+let collapsedGroups = new Set(); // group ids currently collapsed
 
 const TYPE_ORDER = ['new', 'cross', 'replacement'];
 const TYPE_LABELS = {new: 'New Submissions', cross: 'Cross-lists', replacement: 'Replacements'};
+
+const ARXIV_FIELD_ORDER = [
+  'astro-ph','cond-mat','gr-qc','hep-ex','hep-lat','hep-ph','hep-th',
+  'math-ph','nlin','nucl-ex','nucl-th','physics','quant-ph',
+  'math','cs','q-bio','q-fin','stat','eess','econ'
+];
+
+function fieldSortIndex(top) {
+  // Derive top-level order from startupCats, preserving first-seen order
+  const startupTops = [];
+  const seen = new Set();
+  startupCats.forEach(c => {
+    const t = c.split('.')[0];
+    if (!seen.has(t)) { seen.add(t); startupTops.push(t); }
+  });
+  const si = startupTops.indexOf(top);
+  if (si !== -1) return si;
+  const ai = ARXIV_FIELD_ORDER.indexOf(top);
+  if (ai !== -1) return startupTops.length + ai;
+  return startupTops.length + ARXIV_FIELD_ORDER.length;
+}
 
 function toggleGroup(dim) {
   if (groupOrder.includes(dim)) {
@@ -1194,10 +1198,9 @@ function groupBy(arr, keyFn) {
 
 function sortedGroups(map, dim) {
   const entries = [...map.entries()];
-  if (dim === 'type') {
-    return entries.sort((a, b) => TYPE_ORDER.indexOf(a[0]) - TYPE_ORDER.indexOf(b[0]));
-  }
-  return entries.sort((a, b) => b[1].length - a[1].length);
+  if (dim === 'type')  return entries.sort((a, b) => TYPE_ORDER.indexOf(a[0]) - TYPE_ORDER.indexOf(b[0]));
+  if (dim === 'field') return entries.sort((a, b) => fieldSortIndex(a[0]) - fieldSortIndex(b[0]));
+  return entries;
 }
 
 function dimKey(p, dim) {
@@ -1210,9 +1213,32 @@ function dimLabel(dim, key) {
   if (dim === 'type')  return TYPE_LABELS[key] || key;
 }
 
+function groupId(dim, key) { return `grp-${dim}-${escHtml(key)}`; }
+
 function headerHtml(dim, key, count, level) {
   const cls = level === 1 ? 'group-header-l1' : 'group-header-l2';
-  return `<div class="${cls}">${escHtml(dimLabel(dim, key))}<span class="group-count">${count} paper${count !== 1 ? 's' : ''}</span></div>`;
+  const gid = groupId(dim, key);
+  const arrow = collapsedGroups.has(gid) ? '▶' : '▼';
+  return `<div class="${cls}" onclick="toggleGroupCollapse('${gid}')"><span class="group-arrow">${arrow}</span>${escHtml(dimLabel(dim, key))}<span class="group-count">${count} paper${count !== 1 ? 's' : ''}</span></div>`;
+}
+
+function groupBodyOpen(dim, key) {
+  const gid = groupId(dim, key);
+  return `<div id="${gid}"${collapsedGroups.has(gid) ? ' style="display:none"' : ''}>`;
+}
+
+function toggleGroupCollapse(gid) {
+  if (collapsedGroups.has(gid)) collapsedGroups.delete(gid);
+  else collapsedGroups.add(gid);
+  const el = document.getElementById(gid);
+  if (el) {
+    el.style.display = collapsedGroups.has(gid) ? 'none' : '';
+    const header = el.previousElementSibling;
+    if (header) {
+      const arrow = header.querySelector('.group-arrow');
+      if (arrow) arrow.textContent = collapsedGroups.has(gid) ? '▶' : '▼';
+    }
+  }
 }
 
 function toggleExpandAll() {
