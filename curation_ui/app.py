@@ -359,7 +359,7 @@ def _cleanup_old_papers():
 def _start_scheduler():
     from utils.email import send_weekly_digest
     scheduler = BackgroundScheduler()
-    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="mon-fri", hour=15, minute=0)
+    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="mon-fri", hour=0, minute=1)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=16, minute=0)
     scheduler.add_job(send_weekly_digest, "cron", hour=17, minute=0)
     scheduler.start()
