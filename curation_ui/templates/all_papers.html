@@ -389,8 +389,6 @@
 <div class="header">
   <div class="header-brand">arXiv curator <span id="header-date">// {{ date }}</span></div>
   <div class="header-right">
-    <button class="btn btn-white" id="toggle-day" onclick="setView('day')">day</button>
-    <button class="btn" id="toggle-week" onclick="setView('week')">week</button>
     <a class="btn btn-white" href="/reading-list">reading list <span id="rl-count"></span></a>
     <a class="btn" href="/settings">settings</a>
     <button class="btn" id="dark-toggle" onclick="toggleDark()" title="Toggle dark mode">☀</button>
@@ -408,6 +406,9 @@
     <button class="sb-btn" id="btn-expand-all" onclick="toggleExpandAll()">expand all</button>
   </span>
   <span class="search-group-btns">
+    <button class="sb-btn" id="toggle-day" onclick="setView('day')">day</button>
+    <button class="sb-btn" id="toggle-week" onclick="setView('week')">week</button>
+    <span style="color:var(--border);margin:0 0.1rem;">|</span>
     <button class="sb-btn sb-btn-group" id="btn-sep-fields" onclick="toggleGroup('field')">Fields</button>
     <button class="sb-btn sb-btn-group" id="btn-sep-type" onclick="toggleGroup('type')">Submission type</button>
   </span>
@@ -726,8 +727,8 @@ let startupCats = [];     // top-level cats to pre-select; empty = all
 
 async function setView(mode) {
   viewMode = mode;
-  document.getElementById('toggle-day').className = 'btn ' + (mode === 'day' ? 'btn-white' : '');
-  document.getElementById('toggle-week').className = 'btn ' + (mode === 'week' ? 'btn-white' : '');
+  document.getElementById('toggle-day').className = 'sb-btn' + (mode === 'day' ? ' sb-btn-active' : '');
+  document.getElementById('toggle-week').className = 'sb-btn' + (mode === 'week' ? ' sb-btn-active' : '');
   document.getElementById('header-date').textContent = mode === 'week' ? '// this week' : `// ${DATE}`;
   document.getElementById('papers').innerHTML = '<div class="loading">loading papers…</div>';
   const url = mode === 'week' ? '/api/papers/week' : `/api/papers?date=${DATE}`;
@@ -771,6 +772,8 @@ async function load() {
   renderFollowedSidebar();
   renderKeywordSidebar();
   updateRlCount();
+  document.getElementById('toggle-day').className = 'sb-btn sb-btn-active';
+  document.getElementById('toggle-week').className = 'sb-btn';
   document.getElementById('btn-sep-fields').classList.toggle('sb-btn-active', groupOrder.includes('field'));
   document.getElementById('btn-sep-type').classList.toggle('sb-btn-active', groupOrder.includes('type'));
   render();
