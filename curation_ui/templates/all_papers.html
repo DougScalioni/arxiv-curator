@@ -25,6 +25,8 @@
     --text-mid:  #333333;
   }
 
+  body.dark input[type="checkbox"] { color-scheme: dark; }
+
   body.dark {
     --red:       #e05555;
     --red-dark:  #ff8080;
@@ -465,7 +467,7 @@
       </div>
       <div class="sidebar-section-body">
         <div class="sb-row">
-          <button class="sb-btn" id="btn-all-none" onclick="toggleAllNone()">all</button>
+          <button class="sb-btn" id="btn-all-none" onclick="toggleAllNone()">none</button>
           <button class="sb-btn" onclick="selectStartupCats()">startup</button>
           <button class="sb-btn" id="btn-groups" onclick="toggleGroupsExpand()">expand</button>
         </div>
@@ -1035,7 +1037,7 @@ function toggleAllNone() {
     cb.checked = _allSelected; cb.indeterminate = false;
     if (cb.value) { if (_allSelected) selectedCats.add(cb.value); else selectedCats.delete(cb.value); }
   });
-  document.getElementById('btn-all-none').textContent = _allSelected ? 'all' : 'none';
+  document.getElementById('btn-all-none').textContent = _allSelected ? 'none' : 'all';
   render();
 }
 
@@ -1553,7 +1555,7 @@ function toggleSidebar() {
 
 /* ── Swipe-to-open sidebar (mobile) ── */
 (function () {
-  const EDGE_ZONE = 60;   // px from left edge that starts an open swipe
+  const EDGE_ZONE = 100;  // px from left edge that starts an open swipe
   const THRESHOLD = 55;   // px drag needed to commit open/close
 
   const sidebar = document.querySelector('.sidebar');
