@@ -136,7 +136,9 @@ def send_weekly_digest() -> None:
         print("Weekly digest skipped: GMAIL_USER or GMAIL_APP_PASSWORD not configured")
         return
 
-    today_dow = date.today().weekday()  # 0=Mon, 4=Fri, 6=Sun
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    today_dow = datetime.now(ZoneInfo("America/Chicago")).weekday()  # 0=Mon, 4=Fri, 6=Sun
     db = get_admin_client()
     papers = _get_week_papers()
     if not papers:

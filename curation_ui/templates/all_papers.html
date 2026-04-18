@@ -1256,6 +1256,13 @@ function render() {
     </div>`;
   }
 
+  shown.sort((a, b) => {
+    const aF = (a.authors||[]).some(x => followedAuthors.has(x));
+    const bF = (b.authors||[]).some(x => followedAuthors.has(x));
+    if (aF !== bF) return aF ? -1 : 1;
+    return scoreKeywords(b).score - scoreKeywords(a).score;
+  });
+
   const entries = expandForGrouping(shown);
 
   if (groupOrder.length === 0) {
