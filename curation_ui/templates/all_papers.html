@@ -673,7 +673,6 @@ async function setView(mode) {
   document.getElementById('papers').innerHTML = '<div class="loading">loading papers…</div>';
   const url = mode === 'week' ? '/api/papers/week' : `/api/papers?date=${DATE}`;
   papers = (await fetch(url).then(r => r.json())).papers;
-  selectedCats = new Set();
   buildCategoryList();
   renderKeywordSidebar();
   render();
@@ -696,6 +695,7 @@ async function load() {
     .split(';').map(s => s.trim().toLowerCase()).filter(Boolean);
 
   buildCategoryList();
+  Object.keys(categoryCounts()).forEach(c => { if (matchesStartup(c)) selectedCats.add(c); });
   renderFollowedSidebar();
   renderKeywordSidebar();
   updateRlCount();
@@ -755,7 +755,9 @@ function scoreKeywords(paper) {
 
 function categoryCounts() {
   const counts = {};
-  papers.forEach(p => (p.categories || []).forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
+  papers
+    .filter(p => !readingListIds.has(p.id))
+    .forEach(p => (p.categories || []).forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
   return counts;
 }
 
@@ -767,10 +769,6 @@ function buildCategoryList() {
     if (!groups[top]) groups[top] = [];
     groups[top].push({cat, n});
   });
-  Object.keys(counts).forEach(c => {
-    if (matchesStartup(c)) selectedCats.add(c);
-  });
-
   const el = document.getElementById('cat-list');
   el.innerHTML = Object.entries(groups)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -798,6 +796,7 @@ function buildCategoryList() {
         <div class="cat-group-items" id="items-${top}">${rows}</div>
       </div>`;
     }).join('');
+  Object.keys(groups).forEach(top => updateGroupCb(top));
 }
 
 function toggleGroupCollapse(top) {
@@ -1095,6 +1094,7 @@ async function toggleReadingList(event, paperId) {
   const d = await apiPost(ep, body);
   readingListIds = new Set(d.ids);
   updateRlCount();
+  buildCategoryList();
   render();
 }
 

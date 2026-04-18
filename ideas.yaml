@@ -4,6 +4,8 @@ fixes:
 - clean up. Lots of folders with stuff that isn't being used. Would be nice to have a diagram describing everything.
 - the followed author is too subtle, I have to think about how to improve this.
 - make sure the login stays over sessions.
+- arxiv author look up is weird.
+- everytime i click on anything it resets to startup categories. I want startup categories ONLY when I click on startup or when I refresh/go on the website.
 
 some ideas:
 - click on author and take to author page on scholar, also with option to add author to list on dropdown list.
