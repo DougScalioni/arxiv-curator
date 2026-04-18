@@ -1462,8 +1462,35 @@ function expandForGrouping(papers) {
         if (field) result.push({p, field, type});
       });
     });
+  } else if (groupOrder.length === 1 && groupOrder[0] === 'type') {
+    // Type-only: each paper appears exactly once.
+    // If primary field is selected → show in its primary type.
+    // If primary field is not selected → show in types of cross-listed selected fields.
+    papers.forEach(p => {
+      const apps = (p.appearances && p.appearances.length)
+        ? p.appearances
+        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
+
+      const primaryField = (p.primary_category || 'other').split('.')[0];
+
+      if (fieldHasSelectedCat(primaryField)) {
+        const primaryApp = apps.find(app => (app.category || 'other').split('.')[0] === primaryField);
+        const type = primaryApp ? (primaryApp.type || 'new') : (p.submission_type || 'new');
+        result.push({p, field: primaryField, type});
+      } else {
+        const seenTypes = new Set();
+        apps.forEach(app => {
+          const field = (app.category || 'other').split('.')[0];
+          const type  = app.type || 'new';
+          if (fieldHasSelectedCat(field) && !seenTypes.has(type)) {
+            seenTypes.add(type);
+            result.push({p, field, type});
+          }
+        });
+      }
+    });
   } else {
-    // Field → Type (or single-dimension): original behavior, untouched.
+    // Field → Type (or single field): original behavior, untouched.
     papers.forEach(p => {
       const apps = (p.appearances && p.appearances.length)
         ? p.appearances
