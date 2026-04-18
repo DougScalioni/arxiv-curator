@@ -1295,7 +1295,7 @@ function render() {
       <div class="paper-authors">${authorsHtml}</div>
       <div class="paper-meta">
         <span class="primary-cat" title="${catTitle(p.primary_category||'')}">${escHtml(p.primary_category||'')}</span>
-        <span>${(p.categories||[]).filter(c=>c!==p.primary_category).map(c=>`<span title="${catTitle(c)}">${escHtml(c)}</span>`).join(' ')}</span>
+        ${(p.categories||[]).filter(c=>c!==p.primary_category).map(c=>`<span title="${catTitle(c)}" style="color:var(--text-dim)">· ${escHtml(c)}</span>`).join('')}
         <span>${p.published?p.published.slice(0,10):''}</span>
         ${(()=>{const t=submissionType; const label={new:'new',cross:'cross',replacement:'replacement'}[t]||t; return `<span class="type-badge type-${t}">${label}</span>`;})()}
       </div>
