@@ -1523,14 +1523,17 @@ function toggleSidebar() {
     // Ignore mostly-vertical swipes
     if (!isOpen && Math.abs(dy) > Math.abs(dx) * 1.5) { dragging = false; return; }
     const sidebarW = sidebar.offsetWidth;
-    const offset = isOpen ? Math.min(0, dx) : Math.min(0, dx + sidebarW) ;
     sidebar.style.transition = 'none';
-    sidebar.style.transform = `translateX(${offset}px)`;
-    if (!isOpen && dx > 0) {
-      backdrop.classList.add('open');
-      backdrop.style.opacity = Math.min(1, dx / sidebarW);
-    } else if (isOpen) {
+    if (isOpen) {
+      // Closing: sidebar at left:0, shift left with transform
+      const offset = Math.min(0, dx);
+      sidebar.style.transform = `translateX(${offset}px)`;
       backdrop.style.opacity = 1 + offset / sidebarW;
+    } else if (dx > 0) {
+      // Opening: drive with left (px) so it tracks the finger from its off-screen position
+      sidebar.style.left = Math.min(0, startX - sidebarW + dx) + 'px';
+      backdrop.classList.add('open');
+      backdrop.style.opacity = Math.min(1, (startX + dx) / sidebarW);
     }
   }, { passive: true });
 
@@ -1540,6 +1543,7 @@ function toggleSidebar() {
     const dx = e.changedTouches[0].clientX - startX;
     sidebar.style.transition = '';
     sidebar.style.transform = '';
+    sidebar.style.left = '';
     backdrop.style.opacity = '';
     if (!isOpen && dx > THRESHOLD) setOpen(true);
     else if (isOpen && dx < -THRESHOLD) setOpen(false);
