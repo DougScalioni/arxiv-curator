@@ -4,10 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>arXiv curator — all papers</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
-  onload="window._katexReady=true"></script>
 <style>
   :root {
     --red:       #b31b1b;
@@ -347,7 +343,7 @@
       left: -105%; top: 0; bottom: 0;
       height: 100%; width: 82vw; max-width: 300px;
       z-index: 300;
-      transition: left 0.22s ease;
+      transition: left 0.22s ease, transform 0.22s ease;
       box-shadow: 3px 0 14px rgba(0,0,0,0.18);
     }
     .sidebar.open { left: 0; }
@@ -662,6 +658,31 @@ let followedAuthors = new Set();
 let keywords = [];        // [string]
 let readingListIds = new Set();
 function baseId(id) { return (id || '').replace(/v\d+$/, ''); }
+let _scoreCache = new Map();
+function cachedScore(p) {
+  let s = _scoreCache.get(p.id);
+  if (!s) { s = scoreKeywords(p); _scoreCache.set(p.id, s); }
+  return s;
+}
+let _katexLoading = false;
+function loadKatex() {
+  if (window._katexReady) { renderLatex(); return; }
+  if (_katexLoading) return;
+  _katexLoading = true;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css';
+  document.head.appendChild(link);
+  const s1 = document.createElement('script');
+  s1.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js';
+  s1.onload = () => {
+    const s2 = document.createElement('script');
+    s2.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js';
+    s2.onload = () => { window._katexReady = true; renderLatex(); };
+    document.head.appendChild(s2);
+  };
+  document.head.appendChild(s1);
+}
 let searchQuery = "";
 let searchTimer = null;
 let startupCats = [];     // top-level cats to pre-select; empty = all
@@ -1166,13 +1187,13 @@ function filtered() {
     if (!(p.categories||[]).some(c => selectedCats.has(c))) return false;
     if (!matchesSearch(p)) return false;
     if (onlyFollowed && !(p.authors||[]).some(a => followedAuthors.has(a))) return false;
-    if (onlyKeywords && scoreKeywords(p).score === 0) return false;
+    if (onlyKeywords && cachedScore(p).score === 0) return false;
     return true;
   });
 
   // When keyword filter is on, sort by keyword score descending
   if (onlyKeywords) {
-    result = result.map(p => ({p, ks: scoreKeywords(p)}))
+    result = result.map(p => ({p, ks: cachedScore(p)}))
       .sort((a, b) => b.ks.score - a.ks.score)
       .map(({p}) => p);
   }
@@ -1202,6 +1223,7 @@ function buildAuthors(arr) {
 }
 
 function render() {
+  _scoreCache.clear();
   sessionStorage.setItem('selectedCats', JSON.stringify([...selectedCats]));
   allExpanded = false;
   const btn = document.getElementById('btn-expand-all');
@@ -1217,7 +1239,7 @@ function render() {
     const p = entry.p || entry;
     const submissionType = entry.type || p.submission_type || 'new';
     const hasFollowed = (p.authors||[]).some(a => followedAuthors.has(a));
-    const {score: kwScore, matched: kwMatched} = scoreKeywords(p);
+    const {score: kwScore, matched: kwMatched} = cachedScore(p);
     const hasKw = kwScore > 0;
     const bookmarked = readingListIds.has(baseId(p.id));
 
@@ -1260,7 +1282,7 @@ function render() {
     const aF = (a.authors||[]).some(x => followedAuthors.has(x));
     const bF = (b.authors||[]).some(x => followedAuthors.has(x));
     if (aF !== bF) return aF ? -1 : 1;
-    return scoreKeywords(b).score - scoreKeywords(a).score;
+    return cachedScore(b).score - cachedScore(a).score;
   });
 
   const entries = expandForGrouping(shown);
@@ -1290,13 +1312,13 @@ function render() {
       }).join('');
   }
 
-  renderLatex();
+  loadKatex();
 }
 
 function toggleExpand(el, e) {
   if (e.target.closest('.paper-links') || e.target.tagName==='A' || e.target.classList.contains('author-name')) return;
   el.classList.toggle('expanded');
-  if (el.classList.contains('expanded')) renderLatex();
+  if (el.classList.contains('expanded')) loadKatex();
 }
 
 let allExpanded = false;
@@ -1437,7 +1459,7 @@ function toggleExpandAll() {
   sessionStorage.setItem('allExpanded', allExpanded);
   document.querySelectorAll('.paper').forEach(p => p.classList.toggle('expanded', allExpanded));
   document.getElementById('btn-expand-all').textContent = allExpanded ? 'collapse all' : 'expand all';
-  if (allExpanded) renderLatex();
+  if (allExpanded) loadKatex();
 }
 
 function expandAll() {
@@ -1445,7 +1467,7 @@ function expandAll() {
   document.querySelectorAll('.paper').forEach(p => p.classList.add('expanded'));
   const btn = document.getElementById('btn-expand-all');
   if (btn) btn.textContent = 'collapse all';
-  renderLatex();
+  loadKatex();
 }
 
 function collapseAll() {
@@ -1466,6 +1488,64 @@ function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('open');
   document.querySelector('.sidebar-backdrop').classList.toggle('open');
 }
+
+/* ── Swipe-to-open sidebar (mobile) ── */
+(function () {
+  const EDGE_ZONE = 28;   // px from left edge that starts an open swipe
+  const THRESHOLD = 55;   // px drag needed to commit open/close
+
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.querySelector('.sidebar-backdrop');
+
+  let startX = 0, startY = 0, dragging = false, isOpen = false;
+
+  function setOpen(open) {
+    isOpen = open;
+    sidebar.style.transition = '';
+    sidebar.style.transform = '';
+    sidebar.classList.toggle('open', open);
+    backdrop.classList.toggle('open', open);
+  }
+
+  document.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    isOpen = sidebar.classList.contains('open');
+    dragging = isOpen || startX <= EDGE_ZONE;
+  }, { passive: true });
+
+  document.addEventListener('touchmove', e => {
+    if (!dragging) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+    // Ignore mostly-vertical swipes
+    if (!isOpen && Math.abs(dy) > Math.abs(dx) * 1.5) { dragging = false; return; }
+    const sidebarW = sidebar.offsetWidth;
+    const offset = isOpen ? Math.min(0, dx) : Math.min(0, dx + sidebarW) ;
+    sidebar.style.transition = 'none';
+    sidebar.style.transform = `translateX(${offset}px)`;
+    if (!isOpen && dx > 0) {
+      backdrop.classList.add('open');
+      backdrop.style.opacity = Math.min(1, dx / sidebarW);
+    } else if (isOpen) {
+      backdrop.style.opacity = 1 + offset / sidebarW;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', e => {
+    if (!dragging) return;
+    dragging = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    sidebar.style.transition = '';
+    sidebar.style.transform = '';
+    backdrop.style.opacity = '';
+    if (!isOpen && dx > THRESHOLD) setOpen(true);
+    else if (isOpen && dx < -THRESHOLD) setOpen(false);
+    else setOpen(isOpen); // snap back
+  });
+})();
 
 load();
 </script>

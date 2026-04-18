@@ -1,6 +1,9 @@
 """Flask UI for browsing arxiv papers."""
 from __future__ import annotations
 import os
+import json
+import base64
+import time
 from functools import wraps
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -24,6 +27,16 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
+def _jwt_exp(token: str) -> float:
+    """Return the expiry timestamp from a JWT without verifying the signature."""
+    try:
+        payload = token.split('.')[1]
+        payload += '=' * (-len(payload) % 4)
+        return float(json.loads(base64.urlsafe_b64decode(payload)).get('exp', 0))
+    except Exception:
+        return 0.0
+
+
 def get_current_user():
     """Return the Supabase user for the current session, or None."""
     if "user" in g:
@@ -34,15 +47,27 @@ def get_current_user():
         g.user = None
         return None
 
+    # If token not yet expired, trust the cached user info — no network call.
+    if time.time() < _jwt_exp(token) - 60:
+        user_id = session.get("user_id")
+        if user_id:
+            from types import SimpleNamespace
+            g.user = SimpleNamespace(id=user_id, email=session.get("user_email"))
+            return g.user
+
+    # Token expired (or no cached info) — verify or refresh with Supabase.
     try:
         client = get_anon_client()
         response = client.auth.get_user(token)
-        g.user = response.user
+        user = response.user
+        session["user_id"] = user.id
+        session["user_email"] = getattr(user, "email", None)
+        g.user = user
         return g.user
     except Exception:
         pass
 
-    # Access token expired — try refreshing
+    # Access token invalid — try refreshing.
     refresh = session.get("refresh_token")
     if not refresh:
         g.user = None
@@ -52,7 +77,10 @@ def get_current_user():
         response = client.auth.refresh_session(refresh)
         session["access_token"] = response.session.access_token
         session["refresh_token"] = response.session.refresh_token
-        g.user = response.session.user
+        user = response.session.user
+        session["user_id"] = user.id
+        session["user_email"] = getattr(user, "email", None)
+        g.user = user
         return g.user
     except Exception:
         g.user = None
@@ -121,6 +149,8 @@ def set_session():
             session.permanent = True
             session["access_token"] = access_token
             session["refresh_token"] = refresh_token
+            session["user_id"] = response.user.id
+            session["user_email"] = getattr(response.user, "email", None)
             return jsonify({"ok": True})
     except Exception:
         pass
