@@ -242,7 +242,7 @@
   }
   .paper:hover { background: var(--bg-beige); }
   .paper.has-followed { border-left-color: var(--blue); background: var(--blue-bg); }
-  .paper.has-followed:hover { background: #e8f2fb; }
+  .paper.has-followed:hover { background: var(--bg-beige); }
   .paper.has-keyword { border-left-color: var(--orange); background: var(--orange-bg); }
   .paper.has-keyword.has-followed { border-left-color: var(--blue); }
 
@@ -406,11 +406,11 @@
     <button class="sb-btn" id="btn-expand-all" onclick="toggleExpandAll()">expand all</button>
   </span>
   <span class="search-group-btns">
-    <button class="sb-btn" id="toggle-day" onclick="setView('day')">day</button>
-    <button class="sb-btn" id="toggle-week" onclick="setView('week')">week</button>
-    <span style="color:var(--border);margin:0 0.1rem;">|</span>
     <button class="sb-btn sb-btn-group" id="btn-sep-fields" onclick="toggleGroup('field')">Fields</button>
     <button class="sb-btn sb-btn-group" id="btn-sep-type" onclick="toggleGroup('type')">Submission type</button>
+    <span style="color:var(--border);margin:0 0.1rem;">|</span>
+    <button class="sb-btn sb-btn-group" id="toggle-day" onclick="setView('day')">day</button>
+    <button class="sb-btn sb-btn-group" id="toggle-week" onclick="setView('week')">week</button>
   </span>
 </div>
 
@@ -727,8 +727,8 @@ let startupCats = [];     // top-level cats to pre-select; empty = all
 
 async function setView(mode) {
   viewMode = mode;
-  document.getElementById('toggle-day').className = 'sb-btn' + (mode === 'day' ? ' sb-btn-active' : '');
-  document.getElementById('toggle-week').className = 'sb-btn' + (mode === 'week' ? ' sb-btn-active' : '');
+  document.getElementById('toggle-day').className = 'sb-btn sb-btn-group' + (mode === 'day' ? ' sb-btn-active' : '');
+  document.getElementById('toggle-week').className = 'sb-btn sb-btn-group' + (mode === 'week' ? ' sb-btn-active' : '');
   document.getElementById('header-date').textContent = mode === 'week' ? '// this week' : `// ${DATE}`;
   document.getElementById('papers').innerHTML = '<div class="loading">loading papers…</div>';
   const url = mode === 'week' ? '/api/papers/week' : `/api/papers?date=${DATE}`;
@@ -772,8 +772,8 @@ async function load() {
   renderFollowedSidebar();
   renderKeywordSidebar();
   updateRlCount();
-  document.getElementById('toggle-day').className = 'sb-btn sb-btn-active';
-  document.getElementById('toggle-week').className = 'sb-btn';
+  document.getElementById('toggle-day').className = 'sb-btn sb-btn-group sb-btn-active';
+  document.getElementById('toggle-week').className = 'sb-btn sb-btn-group';
   document.getElementById('btn-sep-fields').classList.toggle('sb-btn-active', groupOrder.includes('field'));
   document.getElementById('btn-sep-type').classList.toggle('sb-btn-active', groupOrder.includes('type'));
   render();
