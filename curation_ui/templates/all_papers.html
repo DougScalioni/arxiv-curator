@@ -358,7 +358,7 @@
     .search-bar { padding: 0.4rem 0.75rem; gap: 0.4rem; flex-wrap: wrap; }
     .search-label { display: none; }
     .search-input { max-width: none; min-width: 0; }
-    .search-expand-btns { display: none; }
+    .search-expand-btns { display: none; } /* unused, kept for compat */
     .search-group-btns { display: flex; gap: 0.3rem; flex-wrap: wrap; }
     .sidebar-toggle { display: block; }
 
@@ -402,15 +402,14 @@
   <input class="search-input" id="search" type="text"
     placeholder="keyword1 && keyword2 && …" oninput="onSearch(this.value)">
   <span class="stats" id="stats"></span>
-  <span class="search-expand-btns">
-    <button class="sb-btn" id="btn-expand-all" onclick="toggleExpandAll()">expand all</button>
-  </span>
   <span class="search-group-btns">
-    <button class="sb-btn sb-btn-group" id="btn-sep-fields" onclick="toggleGroup('field')">Fields</button>
-    <button class="sb-btn sb-btn-group" id="btn-sep-type" onclick="toggleGroup('type')">Submission type</button>
+    <button class="sb-btn sb-btn-group sb-btn-active" id="toggle-day" onclick="setView('day')">Daily</button>
+    <button class="sb-btn sb-btn-group" id="toggle-week" onclick="setView('week')">Weekly</button>
     <span style="color:var(--border);margin:0 0.1rem;">|</span>
-    <button class="sb-btn sb-btn-group" id="toggle-day" onclick="setView('day')">day</button>
-    <button class="sb-btn sb-btn-group" id="toggle-week" onclick="setView('week')">week</button>
+    <button class="sb-btn sb-btn-group" id="btn-sep-fields" onclick="toggleGroup('field')">Fields</button>
+    <button class="sb-btn sb-btn-group" id="btn-sep-type" onclick="toggleGroup('type')">Type</button>
+    <span style="color:var(--border);margin:0 0.1rem;">|</span>
+    <button class="sb-btn sb-btn-group" id="btn-expand-all" onclick="toggleExpandAll()">Expand</button>
   </span>
 </div>
 
@@ -1263,7 +1262,7 @@ function render() {
   sessionStorage.setItem('selectedCats', JSON.stringify([...selectedCats]));
   allExpanded = false;
   const btn = document.getElementById('btn-expand-all');
-  if (btn) btn.textContent = 'expand all';
+  if (btn) btn.textContent = 'Expand';
 
   const shown = filtered();
   document.getElementById('stats').textContent = `${shown.length} / ${papers.length} papers`;
@@ -1525,7 +1524,7 @@ function toggleExpandAll() {
   allExpanded = !allExpanded;
   sessionStorage.setItem('allExpanded', allExpanded);
   document.querySelectorAll('.paper').forEach(p => p.classList.toggle('expanded', allExpanded));
-  document.getElementById('btn-expand-all').textContent = allExpanded ? 'collapse all' : 'expand all';
+  document.getElementById('btn-expand-all').textContent = allExpanded ? 'Collapse' : 'Expand';
   if (allExpanded) loadKatex();
 }
 
@@ -1533,7 +1532,7 @@ function expandAll() {
   allExpanded = true;
   document.querySelectorAll('.paper').forEach(p => p.classList.add('expanded'));
   const btn = document.getElementById('btn-expand-all');
-  if (btn) btn.textContent = 'collapse all';
+  if (btn) btn.textContent = 'Collapse';
   loadKatex();
 }
 
@@ -1541,7 +1540,7 @@ function collapseAll() {
   allExpanded = false;
   document.querySelectorAll('.paper').forEach(p => p.classList.remove('expanded'));
   const btn = document.getElementById('btn-expand-all');
-  if (btn) btn.textContent = 'expand all';
+  if (btn) btn.textContent = 'Expand';
 }
 
 function toggleSection(titleEl) {
