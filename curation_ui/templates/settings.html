@@ -85,6 +85,21 @@
 
   .disabled-overlay { opacity: 0.4; pointer-events: none; }
 
+  .day-checkboxes { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
+  .day-label {
+    display: flex; align-items: center; gap: 0.3rem;
+    font-size: 0.85em; color: var(--text-mid); cursor: pointer;
+    border: 1px solid var(--border); border-radius: 2px;
+    padding: 0.2em 0.5em; user-select: none;
+  }
+  .day-label input { accent-color: var(--red); cursor: pointer; width: 13px; height: 13px; }
+  .inline-num {
+    width: 4em; font-family: inherit; font-size: 1em;
+    padding: 0.1em 0.3em; border: 1px solid var(--border);
+    border-radius: 2px; text-align: center; outline: none;
+  }
+  .inline-num:focus { border-color: var(--blue); }
+
   @media (max-width: 600px) {
     .header { padding: 0.5rem 1rem; }
     .main { padding: 1.5rem 1rem; }
@@ -111,46 +126,55 @@
     <div class="field-desc">Categories selected by default when the site opens, separated by <code>;</code>. Leave empty to select all.</div>
   </div>
 
-  <!-- Weekly digest -->
-  <div class="section-title">Weekly digest</div>
+  <!-- Keyword digest -->
+  <div class="section-title">Keyword digest</div>
 
   <div class="field">
     <div class="toggle-row">
-      <input type="checkbox" id="enabled" onchange="onEnabledChange()">
-      <label for="enabled">Send me a weekly digest</label>
+      <input type="checkbox" id="kw_enabled" onchange="updateDisabled()">
+      <label for="kw_enabled">Send me relevant papers</label>
     </div>
   </div>
 
-  <div id="digest-body">
+  <div id="kw-body">
     <div class="field">
-      <span class="field-label">Day</span>
-      <select id="day_of_week">
-        <option value="0">Monday</option>
-        <option value="1">Tuesday</option>
-        <option value="2">Wednesday</option>
-        <option value="3">Thursday</option>
-        <option value="4" selected>Friday</option>
-      </select>
+      <span class="field-label">Days</span>
+      <div class="day-checkboxes">
+        <label class="day-label"><input type="checkbox" class="kw-day" value="0"> Mon</label>
+        <label class="day-label"><input type="checkbox" class="kw-day" value="1"> Tue</label>
+        <label class="day-label"><input type="checkbox" class="kw-day" value="2"> Wed</label>
+        <label class="day-label"><input type="checkbox" class="kw-day" value="3"> Thu</label>
+        <label class="day-label"><input type="checkbox" class="kw-day" value="4"> Fri</label>
+      </div>
     </div>
-
     <div class="field">
-      <span class="field-label">Include</span>
-      <div class="checkbox-row">
-        <input type="checkbox" id="include_keywords">
-        <label for="include_keywords">Keyword matches</label>
+      <div style="font-size:0.88em;color:var(--text-mid);display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+        Up to <input type="number" class="inline-num" id="kw_limit" min="1" max="200" value="20">
+        papers, ranked by number of keyword matches.
       </div>
-      <div class="checkbox-desc" style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
-        Up to
-        <input type="number" id="keyword_limit" min="1" max="200" value="20"
-          style="width:4em;font-family:inherit;font-size:1em;padding:0.1em 0.3em;
-                 border:1px solid var(--border);border-radius:2px;text-align:center;">
-        papers matching your saved keywords, ranked by number of matches.
+    </div>
+  </div>
+
+  <!-- Followed authors digest -->
+  <div class="section-title" style="margin-top:2rem;">Followed authors digest</div>
+
+  <div class="field">
+    <div class="toggle-row">
+      <input type="checkbox" id="auth_enabled" onchange="updateDisabled()">
+      <label for="auth_enabled">Send me papers by followed authors</label>
+    </div>
+  </div>
+
+  <div id="auth-body">
+    <div class="field">
+      <span class="field-label">Days</span>
+      <div class="day-checkboxes">
+        <label class="day-label"><input type="checkbox" class="auth-day" value="0"> Mon</label>
+        <label class="day-label"><input type="checkbox" class="auth-day" value="1"> Tue</label>
+        <label class="day-label"><input type="checkbox" class="auth-day" value="2"> Wed</label>
+        <label class="day-label"><input type="checkbox" class="auth-day" value="3"> Thu</label>
+        <label class="day-label"><input type="checkbox" class="auth-day" value="4"> Fri</label>
       </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="include_authors">
-        <label for="include_authors">Followed authors</label>
-      </div>
-      <div class="checkbox-desc">Papers by authors you follow, listed before keyword matches.</div>
     </div>
   </div>
 
@@ -166,20 +190,22 @@ async function load() {
   const r = await fetch('/api/email-prefs');
   const p = await r.json();
   document.getElementById('startup_categories').value = p.startup_categories || '';
-  document.getElementById('enabled').checked = p.enabled;
-  document.getElementById('day_of_week').value = p.day_of_week;
-  document.getElementById('include_keywords').checked = p.include_keywords;
-  document.getElementById('keyword_limit').value = p.keyword_limit ?? 20;
-  document.getElementById('include_authors').checked = p.include_authors;
-  updateDisabled(p.enabled);
+
+  document.getElementById('kw_enabled').checked = p.kw_enabled ?? true;
+  const kwDays = p.kw_days || [4];
+  document.querySelectorAll('.kw-day').forEach(cb => { cb.checked = kwDays.includes(parseInt(cb.value)); });
+  document.getElementById('kw_limit').value = p.kw_limit ?? 20;
+
+  document.getElementById('auth_enabled').checked = p.auth_enabled ?? false;
+  const authDays = p.auth_days || [4];
+  document.querySelectorAll('.auth-day').forEach(cb => { cb.checked = authDays.includes(parseInt(cb.value)); });
+
+  updateDisabled();
 }
 
-function onEnabledChange() {
-  updateDisabled(document.getElementById('enabled').checked);
-}
-
-function updateDisabled(enabled) {
-  document.getElementById('digest-body').classList.toggle('disabled-overlay', !enabled);
+function updateDisabled() {
+  document.getElementById('kw-body').classList.toggle('disabled-overlay', !document.getElementById('kw_enabled').checked);
+  document.getElementById('auth-body').classList.toggle('disabled-overlay', !document.getElementById('auth_enabled').checked);
 }
 
 async function save() {
@@ -191,11 +217,11 @@ async function save() {
 
   const body = {
     startup_categories: document.getElementById('startup_categories').value.trim(),
-    enabled: document.getElementById('enabled').checked,
-    day_of_week: parseInt(document.getElementById('day_of_week').value),
-    include_keywords: document.getElementById('include_keywords').checked,
-    keyword_limit: Math.max(1, parseInt(document.getElementById('keyword_limit').value) || 20),
-    include_authors: document.getElementById('include_authors').checked,
+    kw_enabled: document.getElementById('kw_enabled').checked,
+    kw_days: [...document.querySelectorAll('.kw-day:checked')].map(cb => parseInt(cb.value)),
+    kw_limit: Math.max(1, parseInt(document.getElementById('kw_limit').value) || 20),
+    auth_enabled: document.getElementById('auth_enabled').checked,
+    auth_days: [...document.querySelectorAll('.auth-day:checked')].map(cb => parseInt(cb.value)),
   };
 
   try {

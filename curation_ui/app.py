@@ -213,8 +213,21 @@ def get_email_prefs(user_id: str) -> dict:
     db = get_admin_client()
     result = db.table("email_prefs").select("*").eq("user_id", user_id).execute()
     if result.data:
-        return result.data[0]
-    return {"enabled": True, "day_of_week": 4, "include_keywords": True, "include_authors": False}
+        row = result.data[0]
+        # Migrate old single-digest schema to new split schema
+        if "kw_enabled" not in row:
+            enabled = row.get("enabled", True)
+            row["kw_enabled"] = enabled and row.get("include_keywords", True)
+            row["kw_days"] = [row.get("day_of_week", 4)]
+            row["kw_limit"] = row.get("keyword_limit", 20)
+            row["auth_enabled"] = enabled and row.get("include_authors", False)
+            row["auth_days"] = [row.get("day_of_week", 4)]
+        return row
+    return {
+        "startup_categories": "",
+        "kw_enabled": True,  "kw_days": [4], "kw_limit": 20,
+        "auth_enabled": False, "auth_days": [4],
+    }
 
 
 # ── App routes ────────────────────────────────────────────────────────────────
@@ -252,12 +265,12 @@ def api_save_email_prefs():
     data = request.json or {}
     prefs = {
         "user_id": user.id,
-        "enabled": bool(data.get("enabled", True)),
-        "day_of_week": int(data.get("day_of_week", 4)),
-        "include_keywords": bool(data.get("include_keywords", True)),
-        "keyword_limit": max(1, int(data.get("keyword_limit", 20))),
-        "include_authors": bool(data.get("include_authors", False)),
         "startup_categories": data.get("startup_categories", ""),
+        "kw_enabled": bool(data.get("kw_enabled", True)),
+        "kw_days": data.get("kw_days", [4]),
+        "kw_limit": max(1, int(data.get("kw_limit", 20))),
+        "auth_enabled": bool(data.get("auth_enabled", False)),
+        "auth_days": data.get("auth_days", [4]),
     }
     db = get_admin_client()
     db.table("email_prefs").upsert(prefs).execute()

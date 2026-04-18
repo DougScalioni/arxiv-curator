@@ -159,29 +159,39 @@ def send_weekly_digest() -> None:
             if not email or not user_id:
                 continue
 
-            # Load prefs (defaults: enabled, Friday, keywords only)
             pref_result = db.table("email_prefs").select("*").eq("user_id", user_id).execute()
             prefs = pref_result.data[0] if pref_result.data else {}
-            if not prefs.get("enabled", True):
-                continue
-            if prefs.get("day_of_week", 4) != today_dow:
-                continue
 
-            include_kw = prefs.get("include_keywords", True)
-            include_auth = prefs.get("include_authors", False)
-            keyword_limit = max(1, int(prefs.get("keyword_limit", 20)))
+            # Support old single-digest schema
+            if "kw_enabled" not in prefs:
+                old_enabled = prefs.get("enabled", True)
+                kw_enabled  = old_enabled and prefs.get("include_keywords", True)
+                auth_enabled = old_enabled and prefs.get("include_authors", False)
+                kw_days   = [prefs.get("day_of_week", 4)]
+                auth_days = [prefs.get("day_of_week", 4)]
+                kw_limit  = max(1, int(prefs.get("keyword_limit", 20)))
+            else:
+                kw_enabled   = prefs.get("kw_enabled", False)
+                auth_enabled = prefs.get("auth_enabled", False)
+                kw_days   = prefs.get("kw_days", [4])
+                auth_days = prefs.get("auth_days", [4])
+                kw_limit  = max(1, int(prefs.get("kw_limit", 20)))
+
+            send_kw   = kw_enabled   and today_dow in kw_days
+            send_auth = auth_enabled and today_dow in auth_days
+            if not send_kw and not send_auth:
+                continue
 
             kw_papers: list[tuple[dict, list[str]]] = []
-            if include_kw:
+            keywords: list[str] = []
+            if send_kw:
                 kw_data = db.table("keywords").select("keyword").eq("user_id", user_id).execute()
                 keywords = [r["keyword"] for r in kw_data.data]
                 if keywords:
-                    kw_papers = _top_by_keywords(papers, keywords, keyword_limit)
-            else:
-                keywords = []
+                    kw_papers = _top_by_keywords(papers, keywords, kw_limit)
 
             author_papers: list[tuple[dict, list[str]]] = []
-            if include_auth:
+            if send_auth:
                 auth_data = db.table("followed_authors").select("author_name").eq("user_id", user_id).execute()
                 authors = [r["author_name"] for r in auth_data.data]
                 if authors:
