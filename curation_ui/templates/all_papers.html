@@ -702,6 +702,14 @@ async function load() {
     Object.keys(categoryCounts()).forEach(c => { if (matchesStartup(c)) selectedCats.add(c); });
   }
   buildCategoryList();
+  document.querySelectorAll('.cat-group').forEach(group => {
+    const top = group.id.replace('group-', '');
+    const items = document.getElementById(`items-${top}`);
+    const btn = group.querySelector('.collapse-btn');
+    if (!items) return;
+    const hasSelected = [...items.querySelectorAll('input[type="checkbox"]')].some(cb => cb.checked);
+    if (!hasSelected) { items.classList.add('collapsed'); if (btn) btn.textContent = '▶'; }
+  });
   renderFollowedSidebar();
   renderKeywordSidebar();
   updateRlCount();
@@ -783,6 +791,19 @@ function buildCategoryList() {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([top, subs]) => {
       const groupTotal = subs.reduce((s, x) => s + x.n, 0);
+      if (subs.length === 1) {
+        const {cat, n} = subs[0];
+        return `
+      <div class="cat-group" id="group-${top}">
+        <div class="cat-group-header" title="${catTitle(top)}">
+          <input type="checkbox" id="cb-${cat}" value="${cat}" ${selectedCats.has(cat) ? 'checked' : ''}
+            title="${catTitle(top)}"
+            onchange="onSubCatChange('${top}', '${cat}', this.checked)">
+          <span class="cat-group-label" onclick="soloCategory('${cat}')" title="${catTitle(top)}">${top}</span>
+          <span class="cat-group-count" title="${catTitle(top)}">${n}</span>
+        </div>
+      </div>`;
+      }
       const rows = subs.sort((a, b) => b.n - a.n).map(({cat, n}) => `
         <div class="cat-item" title="${catTitle(cat)}">
           <input type="checkbox" id="cb-${cat}" value="${cat}" ${selectedCats.has(cat) ? 'checked' : ''}
@@ -795,7 +816,7 @@ function buildCategoryList() {
       return `
       <div class="cat-group" id="group-${top}">
         <div class="cat-group-header" title="${catTitle(top)}">
-          <button class="collapse-btn" onclick="toggleGroupCollapse('${top}')" title="${catTitle(top)}">▼</button>
+          <button class="collapse-btn" onclick="toggleCatGroupCollapse('${top}')" title="${catTitle(top)}">▼</button>
           <input type="checkbox" id="cb-group-${top}" checked
             title="${catTitle(top)}"
             onchange="onGroupCbChange('${top}', this.checked)">
@@ -808,7 +829,7 @@ function buildCategoryList() {
   Object.keys(groups).forEach(top => updateGroupCb(top));
 }
 
-function toggleGroupCollapse(top) {
+function toggleCatGroupCollapse(top) {
   const items = document.getElementById(`items-${top}`);
   const btn = document.querySelector(`#group-${top} .collapse-btn`);
   items.classList.toggle('collapsed');
