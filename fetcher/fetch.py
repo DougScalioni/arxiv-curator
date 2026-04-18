@@ -31,6 +31,7 @@ def get_new_ids(category: str) -> dict[str, list[str]]:
     html = resp.text
 
     sections: dict[str, list[str]] = {"new": [], "cross": [], "replacement": []}
+    section_seen: set[str] = set()
     current: str | None = None
 
     for part in re.split(r'<h3[^>]*>', html, flags=re.IGNORECASE):
@@ -43,8 +44,10 @@ def get_new_ids(category: str) -> dict[str, list[str]]:
             current = "replacement"
 
         if current:
-            ids = list(dict.fromkeys(re.findall(r'href\s*="/abs/(\d{4}\.\d{4,5})', part)))
-            sections[current].extend(ids)
+            for id_ in dict.fromkeys(re.findall(r'href\s*="/abs/(\d{4}\.\d{4,5})', part)):
+                if id_ not in section_seen:
+                    section_seen.add(id_)
+                    sections[current].append(id_)
 
     total = sum(len(v) for v in sections.values())
     print(f"    {category}: {total} papers "
@@ -112,6 +115,7 @@ def main():
     all_ids: list[str] = []
     seen: set[str] = set()
     appearances_map: dict[str, list[dict]] = {}  # base_id -> [{category, type}, ...]
+    position_map: dict[str, int] = {}  # base_id -> 1-based listing position
 
     for cat in categories:
         try:
@@ -128,6 +132,7 @@ def main():
                     seen.add(base)
                     all_ids.append(id_)
                     appearances_map[base] = []
+                    position_map[base] = len(all_ids)
                 app = {"category": cat, "type": type_}
                 if app not in appearances_map[base]:
                     appearances_map[base].append(app)
@@ -146,6 +151,7 @@ def main():
         base = re.sub(r'v\d+$', '', p["id"])
         apps = appearances_map.get(base, [])
         p["appearances"] = apps
+        p["listing_position"] = position_map.get(base)
         # submission_type = highest-priority type across all appearances (for flat view)
         if apps:
             p["submission_type"] = min(apps, key=lambda a: _TYPE_PRIORITY.get(a["type"], 99))["type"]
