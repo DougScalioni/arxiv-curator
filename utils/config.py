@@ -31,7 +31,13 @@ def ensure_dirs():
 
 
 def today_str():
-    """Today's date as YYYY-MM-DD in Chicago time."""
-    from datetime import datetime
+    """Today's date as YYYY-MM-DD in Chicago time.
+    Snaps back to Friday on weekends — arxiv doesn't post Sat/Sun."""
+    from datetime import datetime, timedelta
     from zoneinfo import ZoneInfo
-    return datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+    d = datetime.now(ZoneInfo("America/Chicago")).date()
+    if d.weekday() == 5:    # Saturday → Friday
+        d -= timedelta(days=1)
+    elif d.weekday() == 6:  # Sunday → Friday
+        d -= timedelta(days=2)
+    return d.isoformat()

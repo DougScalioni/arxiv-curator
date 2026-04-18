@@ -47,44 +47,40 @@ def get_current_user():
         g.user = None
         return None
 
-    # If token not yet expired, trust the cached user info — no network call.
+    from types import SimpleNamespace
+    cached_user_id = session.get("user_id")
+
+    # Token still valid — use cached user info, no network call.
     if time.time() < _jwt_exp(token) - 60:
-        user_id = session.get("user_id")
-        if user_id:
-            from types import SimpleNamespace
-            g.user = SimpleNamespace(id=user_id, email=session.get("user_email"))
+        if cached_user_id:
+            g.user = SimpleNamespace(id=cached_user_id, email=session.get("user_email"))
             return g.user
 
-    # Token expired (or no cached info) — verify or refresh with Supabase.
-    try:
-        client = get_anon_client()
-        response = client.auth.get_user(token)
-        user = response.user
-        session["user_id"] = user.id
-        session["user_email"] = getattr(user, "email", None)
-        g.user = user
-        return g.user
-    except Exception:
-        pass
-
-    # Access token invalid — try refreshing.
+    # Token expired — go straight to refresh (calling get_user with an expired
+    # token always fails and just wastes a network round-trip).
     refresh = session.get("refresh_token")
-    if not refresh:
-        g.user = None
-        return None
-    try:
-        client = get_anon_client()
-        response = client.auth.refresh_session(refresh)
-        session["access_token"] = response.session.access_token
-        session["refresh_token"] = response.session.refresh_token
-        user = response.session.user
-        session["user_id"] = user.id
-        session["user_email"] = getattr(user, "email", None)
-        g.user = user
+    if refresh:
+        try:
+            client = get_anon_client()
+            response = client.auth.refresh_session(refresh)
+            session["access_token"] = response.session.access_token
+            session["refresh_token"] = response.session.refresh_token
+            user = response.session.user
+            session["user_id"] = user.id
+            session["user_email"] = getattr(user, "email", None)
+            g.user = user
+            return g.user
+        except Exception:
+            pass
+
+    # Refresh failed (transient network error) — keep user logged in using
+    # cached identity rather than forcing a re-login.
+    if cached_user_id:
+        g.user = SimpleNamespace(id=cached_user_id, email=session.get("user_email"))
         return g.user
-    except Exception:
-        g.user = None
-        return None
+
+    g.user = None
+    return None
 
 
 def require_auth(f):
@@ -392,8 +388,7 @@ def _start_scheduler():
     from utils.email import send_weekly_digest
     chicago = ZoneInfo("America/Chicago")
     scheduler = BackgroundScheduler(timezone=chicago)
-    # arxiv releases at 20:00 ET = 19:00 CT; fetch sun-thu covers mon-fri listings
-    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="sun,mon,tue,wed,thu", hour=19, minute=5)
+    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="mon,tue,wed,thu,fri", hour=0, minute=1)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=10, minute=0)
     scheduler.add_job(send_weekly_digest, "cron", hour=8, minute=1)
     scheduler.start()
