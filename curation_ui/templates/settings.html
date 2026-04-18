@@ -139,7 +139,13 @@
         <input type="checkbox" id="include_keywords">
         <label for="include_keywords">Keyword matches</label>
       </div>
-      <div class="checkbox-desc">Top 50 papers matching your saved keywords, ranked by number of matches.</div>
+      <div class="checkbox-desc" style="display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;">
+        Up to
+        <input type="number" id="keyword_limit" min="1" max="200" value="20"
+          style="width:4em;font-family:inherit;font-size:1em;padding:0.1em 0.3em;
+                 border:1px solid var(--border);border-radius:2px;text-align:center;">
+        papers matching your saved keywords, ranked by number of matches.
+      </div>
       <div class="checkbox-row">
         <input type="checkbox" id="include_authors">
         <label for="include_authors">Followed authors</label>
@@ -163,6 +169,7 @@ async function load() {
   document.getElementById('enabled').checked = p.enabled;
   document.getElementById('day_of_week').value = p.day_of_week;
   document.getElementById('include_keywords').checked = p.include_keywords;
+  document.getElementById('keyword_limit').value = p.keyword_limit ?? 20;
   document.getElementById('include_authors').checked = p.include_authors;
   updateDisabled(p.enabled);
 }
@@ -187,6 +194,7 @@ async function save() {
     enabled: document.getElementById('enabled').checked,
     day_of_week: parseInt(document.getElementById('day_of_week').value),
     include_keywords: document.getElementById('include_keywords').checked,
+    keyword_limit: Math.max(1, parseInt(document.getElementById('keyword_limit').value) || 20),
     include_authors: document.getElementById('include_authors').checked,
   };
 

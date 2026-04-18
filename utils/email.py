@@ -26,7 +26,7 @@ def _get_week_papers() -> list[dict]:
     return merged
 
 
-def _top_by_keywords(papers: list[dict], keywords: list[str]) -> list[tuple[dict, list[str]]]:
+def _top_by_keywords(papers: list[dict], keywords: list[str], limit: int = 20) -> list[tuple[dict, list[str]]]:
     kw_lower = [kw.lower() for kw in keywords]
     scored = []
     for p in papers:
@@ -35,7 +35,7 @@ def _top_by_keywords(papers: list[dict], keywords: list[str]) -> list[tuple[dict
         if matched:
             scored.append((p, matched))
     scored.sort(key=lambda x: -len(x[1]))
-    return scored[:50]
+    return scored[:limit]
 
 
 def _by_authors(papers: list[dict], authors: list[str], exclude_ids: set[str]) -> list[tuple[dict, list[str]]]:
@@ -169,13 +169,14 @@ def send_weekly_digest() -> None:
 
             include_kw = prefs.get("include_keywords", True)
             include_auth = prefs.get("include_authors", False)
+            keyword_limit = max(1, int(prefs.get("keyword_limit", 20)))
 
             kw_papers: list[tuple[dict, list[str]]] = []
             if include_kw:
                 kw_data = db.table("keywords").select("keyword").eq("user_id", user_id).execute()
                 keywords = [r["keyword"] for r in kw_data.data]
                 if keywords:
-                    kw_papers = _top_by_keywords(papers, keywords)
+                    kw_papers = _top_by_keywords(papers, keywords, keyword_limit)
             else:
                 keywords = []
 

@@ -259,6 +259,7 @@ def api_save_email_prefs():
         "enabled": bool(data.get("enabled", True)),
         "day_of_week": int(data.get("day_of_week", 4)),
         "include_keywords": bool(data.get("include_keywords", True)),
+        "keyword_limit": max(1, int(data.get("keyword_limit", 20))),
         "include_authors": bool(data.get("include_authors", False)),
         "startup_categories": data.get("startup_categories", ""),
     }
