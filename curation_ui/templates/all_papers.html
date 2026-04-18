@@ -1427,6 +1427,18 @@ function fieldHasSelectedCat(field) {
   return false;
 }
 
+const _TYPE_PRI = {new: 0, cross: 1, replacement: 2};
+function dedupeApps(apps) {
+  const best = new Map();
+  apps.forEach(app => {
+    const cat = app.category || 'other';
+    const pri = _TYPE_PRI[app.type] ?? 99;
+    const cur = best.get(cat);
+    if (!cur || pri < (_TYPE_PRI[cur.type] ?? 99)) best.set(cat, app);
+  });
+  return [...best.values()];
+}
+
 function expandForGrouping(papers) {
   if (!groupOrder.length) {
     return papers.map(p => ({p, field: dimKey(p, 'field'), type: p.submission_type || 'new'}));
@@ -1437,9 +1449,9 @@ function expandForGrouping(papers) {
     // Type → Field: each paper appears at most once per type group.
     // Use primary field if selected; otherwise first selected cross-listed field.
     papers.forEach(p => {
-      const apps = (p.appearances && p.appearances.length)
+      const apps = dedupeApps((p.appearances && p.appearances.length)
         ? p.appearances
-        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
+        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}]);
 
       const primaryField = (p.primary_category || 'other').split('.')[0];
 
@@ -1467,9 +1479,9 @@ function expandForGrouping(papers) {
     // If primary field is selected → show in its primary type.
     // If primary field is not selected → show in types of cross-listed selected fields.
     papers.forEach(p => {
-      const apps = (p.appearances && p.appearances.length)
+      const apps = dedupeApps((p.appearances && p.appearances.length)
         ? p.appearances
-        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
+        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}]);
 
       const primaryField = (p.primary_category || 'other').split('.')[0];
 
@@ -1492,9 +1504,9 @@ function expandForGrouping(papers) {
   } else {
     // Field → Type (or single field): original behavior, untouched.
     papers.forEach(p => {
-      const apps = (p.appearances && p.appearances.length)
+      const apps = dedupeApps((p.appearances && p.appearances.length)
         ? p.appearances
-        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
+        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}]);
 
       const seen = new Set();
       apps.forEach(app => {
