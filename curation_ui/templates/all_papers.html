@@ -661,6 +661,7 @@ let selectedCats = new Set();
 let followedAuthors = new Set();
 let keywords = [];        // [string]
 let readingListIds = new Set();
+function baseId(id) { return (id || '').replace(/v\d+$/, ''); }
 let searchQuery = "";
 let searchTimer = null;
 let startupCats = [];     // top-level cats to pre-select; empty = all
@@ -689,17 +690,25 @@ async function load() {
   papers = (await papersRes.json()).papers;
   followedAuthors = new Set((await authorsRes.json()).authors);
   keywords = (await kwRes.json()).keywords;
-  readingListIds = new Set((await rlRes.json()).papers.map(p => p.id));
+  readingListIds = new Set((await rlRes.json()).papers.map(p => baseId(p.id)));
   const prefs = await prefsRes.json();
   startupCats = (prefs.startup_categories || '')
     .split(';').map(s => s.trim().toLowerCase()).filter(Boolean);
 
+  const savedCats = sessionStorage.getItem('selectedCats');
+  if (savedCats) {
+    JSON.parse(savedCats).forEach(c => selectedCats.add(c));
+  } else {
+    Object.keys(categoryCounts()).forEach(c => { if (matchesStartup(c)) selectedCats.add(c); });
+  }
   buildCategoryList();
-  Object.keys(categoryCounts()).forEach(c => { if (matchesStartup(c)) selectedCats.add(c); });
   renderFollowedSidebar();
   renderKeywordSidebar();
   updateRlCount();
+  document.getElementById('btn-sep-fields').classList.toggle('sb-btn-active', groupOrder.includes('field'));
+  document.getElementById('btn-sep-type').classList.toggle('sb-btn-active', groupOrder.includes('type'));
   render();
+  if (sessionStorage.getItem('allExpanded') === 'true') expandAll();
 }
 
 /* ── Utilities ── */
@@ -756,7 +765,7 @@ function scoreKeywords(paper) {
 function categoryCounts() {
   const counts = {};
   papers
-    .filter(p => !readingListIds.has(p.id))
+    .filter(p => !readingListIds.has(baseId(p.id)))
     .forEach(p => (p.categories || []).forEach(c => { counts[c] = (counts[c] || 0) + 1; }));
   return counts;
 }
@@ -1087,12 +1096,12 @@ function updateRlCount() {
 
 async function toggleReadingList(event, paperId) {
   event.stopPropagation();
-  const ep = readingListIds.has(paperId) ? '/api/reading_list/remove' : '/api/reading_list/add';
-  const body = readingListIds.has(paperId)
+  const ep = readingListIds.has(baseId(paperId)) ? '/api/reading_list/remove' : '/api/reading_list/add';
+  const body = readingListIds.has(baseId(paperId))
     ? {id: paperId}
     : {paper: papers.find(p => p.id === paperId)};
   const d = await apiPost(ep, body);
-  readingListIds = new Set(d.ids);
+  readingListIds = new Set(d.ids.map(baseId));
   updateRlCount();
   buildCategoryList();
   render();
@@ -1161,6 +1170,7 @@ function buildAuthors(arr) {
 }
 
 function render() {
+  sessionStorage.setItem('selectedCats', JSON.stringify([...selectedCats]));
   allExpanded = false;
   const btn = document.getElementById('btn-expand-all');
   if (btn) btn.textContent = 'expand all';
@@ -1177,7 +1187,7 @@ function render() {
     const hasFollowed = (p.authors||[]).some(a => followedAuthors.has(a));
     const {score: kwScore, matched: kwMatched} = scoreKeywords(p);
     const hasKw = kwScore > 0;
-    const bookmarked = readingListIds.has(p.id);
+    const bookmarked = readingListIds.has(baseId(p.id));
 
     const cls = [hasFollowed ? 'has-followed' : '', hasKw ? 'has-keyword' : ''].filter(Boolean).join(' ');
 
@@ -1251,7 +1261,7 @@ function toggleExpand(el, e) {
 }
 
 let allExpanded = false;
-let groupOrder = []; // ordered list of active grouping dims: 'field' and/or 'type'
+let groupOrder = JSON.parse(sessionStorage.getItem('groupOrder') || '[]');
 let collapsedGroups = new Set(); // group ids currently collapsed
 
 const TYPE_ORDER = ['new', 'cross', 'replacement'];
@@ -1284,6 +1294,7 @@ function toggleGroup(dim) {
   } else {
     groupOrder.push(dim);
   }
+  sessionStorage.setItem('groupOrder', JSON.stringify(groupOrder));
   document.getElementById('btn-sep-fields').classList.toggle('sb-btn-active', groupOrder.includes('field'));
   document.getElementById('btn-sep-type').classList.toggle('sb-btn-active', groupOrder.includes('type'));
   render();
@@ -1384,6 +1395,7 @@ function toggleGroupCollapse(gid) {
 
 function toggleExpandAll() {
   allExpanded = !allExpanded;
+  sessionStorage.setItem('allExpanded', allExpanded);
   document.querySelectorAll('.paper').forEach(p => p.classList.toggle('expanded', allExpanded));
   document.getElementById('btn-expand-all').textContent = allExpanded ? 'collapse all' : 'expand all';
   if (allExpanded) renderLatex();
