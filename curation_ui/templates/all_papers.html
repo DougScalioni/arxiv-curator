@@ -25,6 +25,26 @@
     --text-mid:  #333333;
   }
 
+  body.dark {
+    --red:       #e05555;
+    --red-dark:  #ff8080;
+    --red-light: #2a1010;
+    --blue:      #5aadee;
+    --blue-dark: #85c8ff;
+    --blue-bg:   #0d1e2e;
+    --green:     #4caf50;
+    --green-bg:  #0d1f0e;
+    --orange:    #ffaa44;
+    --orange-bg: #1f1500;
+    --bg:        #1a1a1a;
+    --bg-alt:    #242424;
+    --bg-beige:  #222020;
+    --border:    #3a3a3a;
+    --text:      #e8e8e8;
+    --text-dim:  #888888;
+    --text-mid:  #bbbbbb;
+  }
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
@@ -371,6 +391,7 @@
     <button class="btn" id="toggle-week" onclick="setView('week')">week</button>
     <a class="btn btn-white" href="/reading-list">reading list <span id="rl-count"></span></a>
     <a class="btn" href="/settings">settings</a>
+    <button class="btn" id="dark-toggle" onclick="toggleDark()" title="Toggle dark mode">☀</button>
     <a class="btn" href="/logout">log out</a>
   </div>
 </div>
@@ -444,8 +465,7 @@
       </div>
       <div class="sidebar-section-body">
         <div class="sb-row">
-          <button class="sb-btn" onclick="selectAllCats()">all</button>
-          <button class="sb-btn" onclick="selectNoneCats()">none</button>
+          <button class="sb-btn" id="btn-all-none" onclick="toggleAllNone()">all</button>
           <button class="sb-btn" onclick="selectStartupCats()">startup</button>
           <button class="sb-btn" id="btn-groups" onclick="toggleGroupsExpand()">expand</button>
         </div>
@@ -463,6 +483,19 @@
 </div>
 
 <script>
+/* ── Dark mode ── */
+(function () {
+  const dark = localStorage.getItem('darkMode') === 'true';
+  if (dark) document.body.classList.add('dark');
+  document.getElementById('dark-toggle').textContent = dark ? '☽' : '☀';
+})();
+
+function toggleDark() {
+  const isDark = document.body.classList.toggle('dark');
+  localStorage.setItem('darkMode', isDark);
+  document.getElementById('dark-toggle').textContent = isDark ? '☽' : '☀';
+}
+
 const CAT_NAMES = {
   // Astrophysics
   "astro-ph":    "Astrophysics",
@@ -994,19 +1027,15 @@ function selectStartupCats() {
   render();
 }
 
-function selectAllCats() {
-  document.querySelectorAll('#cat-list input[type="checkbox"]').forEach(cb => {
-    cb.checked = true; cb.indeterminate = false;
-    if (cb.value) selectedCats.add(cb.value);
-  });
-  render();
-}
+let _allSelected = true;
 
-function selectNoneCats() {
+function toggleAllNone() {
+  _allSelected = !_allSelected;
   document.querySelectorAll('#cat-list input[type="checkbox"]').forEach(cb => {
-    cb.checked = false; cb.indeterminate = false;
-    if (cb.value) selectedCats.delete(cb.value);
+    cb.checked = _allSelected; cb.indeterminate = false;
+    if (cb.value) { if (_allSelected) selectedCats.add(cb.value); else selectedCats.delete(cb.value); }
   });
+  document.getElementById('btn-all-none').textContent = _allSelected ? 'all' : 'none';
   render();
 }
 
@@ -1399,27 +1428,58 @@ function expandForGrouping(papers) {
     return papers.map(p => ({p, field: dimKey(p, 'field'), type: p.submission_type || 'new'}));
   }
   const result = [];
-  papers.forEach(p => {
-    const apps = (p.appearances && p.appearances.length)
-      ? p.appearances
-      : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
 
-    const seen = new Set();
-    apps.forEach(app => {
-      const field = (app.category || 'other').split('.')[0];
-      const type  = app.type || 'new';
+  if (groupOrder[0] === 'type' && groupOrder.includes('field')) {
+    // Type → Field: each paper appears at most once per type group.
+    // Use primary field if selected; otherwise first selected cross-listed field.
+    papers.forEach(p => {
+      const apps = (p.appearances && p.appearances.length)
+        ? p.appearances
+        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
 
-      // Skip appearances whose field has no selected category
-      if (groupOrder.includes('field') && !fieldHasSelectedCat(field)) return;
+      const primaryField = (p.primary_category || 'other').split('.')[0];
 
-      // Dedup by the active grouping dimensions only
-      const key = groupOrder.map(d => d === 'field' ? field : type).join('|');
-      if (!seen.has(key)) {
-        seen.add(key);
-        result.push({p, field, type});
-      }
+      // Collect fields per type, preserving appearance order
+      const byType = new Map();
+      apps.forEach(app => {
+        const type  = app.type || 'new';
+        const field = (app.category || 'other').split('.')[0];
+        if (!byType.has(type)) byType.set(type, []);
+        byType.get(type).push(field);
+      });
+
+      byType.forEach((fields, type) => {
+        let field = null;
+        if (fields.includes(primaryField) && fieldHasSelectedCat(primaryField)) {
+          field = primaryField;
+        } else {
+          field = fields.find(f => fieldHasSelectedCat(f)) || null;
+        }
+        if (field) result.push({p, field, type});
+      });
     });
-  });
+  } else {
+    // Field → Type (or single-dimension): original behavior, untouched.
+    papers.forEach(p => {
+      const apps = (p.appearances && p.appearances.length)
+        ? p.appearances
+        : [{category: p.primary_category || 'other', type: p.submission_type || 'new'}];
+
+      const seen = new Set();
+      apps.forEach(app => {
+        const field = (app.category || 'other').split('.')[0];
+        const type  = app.type || 'new';
+
+        if (groupOrder.includes('field') && !fieldHasSelectedCat(field)) return;
+
+        const key = groupOrder.map(d => d === 'field' ? field : type).join('|');
+        if (!seen.has(key)) {
+          seen.add(key);
+          result.push({p, field, type});
+        }
+      });
+    });
+  }
   return result;
 }
 
