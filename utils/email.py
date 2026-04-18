@@ -164,8 +164,8 @@ def send_weekly_digest() -> None:
 
             # Support old single-digest schema
             if "kw_enabled" not in prefs:
-                old_enabled = prefs.get("enabled", True)
-                kw_enabled  = old_enabled and prefs.get("include_keywords", True)
+                old_enabled  = prefs.get("enabled", True)
+                kw_enabled   = old_enabled and prefs.get("include_keywords", True)
                 auth_enabled = old_enabled and prefs.get("include_authors", False)
                 kw_days   = [prefs.get("day_of_week", 4)]
                 auth_days = [prefs.get("day_of_week", 4)]
@@ -174,7 +174,7 @@ def send_weekly_digest() -> None:
                 kw_enabled   = prefs.get("kw_enabled", False)
                 auth_enabled = prefs.get("auth_enabled", False)
                 kw_days   = prefs.get("kw_days", [4])
-                auth_days = prefs.get("auth_days", [4])
+                auth_days = prefs.get("auth_days", [])
                 kw_limit  = max(1, int(prefs.get("kw_limit", 20)))
 
             send_kw   = kw_enabled   and today_dow in kw_days

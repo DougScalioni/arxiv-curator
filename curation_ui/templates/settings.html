@@ -126,8 +126,8 @@
     <div class="field-desc">Categories selected by default when the site opens, separated by <code>;</code>. Leave empty to select all.</div>
   </div>
 
-  <!-- Keyword digest -->
-  <div class="section-title">Keyword digest</div>
+  <!-- Email digest -->
+  <div class="section-title">Email digest</div>
 
   <div class="field">
     <div class="toggle-row">
@@ -135,10 +135,9 @@
       <label for="kw_enabled">Send me relevant papers</label>
     </div>
   </div>
-
   <div id="kw-body">
     <div class="field">
-      <span class="field-label">Days</span>
+      <span class="field-label">When</span>
       <div class="day-checkboxes">
         <label class="day-label"><input type="checkbox" class="kw-day" value="0"> Mon</label>
         <label class="day-label"><input type="checkbox" class="kw-day" value="1"> Tue</label>
@@ -155,19 +154,15 @@
     </div>
   </div>
 
-  <!-- Followed authors digest -->
-  <div class="section-title" style="margin-top:2rem;">Followed authors digest</div>
-
-  <div class="field">
+  <div class="field" style="margin-top:1rem;">
     <div class="toggle-row">
       <input type="checkbox" id="auth_enabled" onchange="updateDisabled()">
-      <label for="auth_enabled">Send me papers by followed authors</label>
+      <label for="auth_enabled">Send me new papers by authors I'm following</label>
     </div>
   </div>
-
   <div id="auth-body">
     <div class="field">
-      <span class="field-label">Days</span>
+      <span class="field-label">When</span>
       <div class="day-checkboxes">
         <label class="day-label"><input type="checkbox" class="auth-day" value="0"> Mon</label>
         <label class="day-label"><input type="checkbox" class="auth-day" value="1"> Tue</label>
@@ -197,7 +192,7 @@ async function load() {
   document.getElementById('kw_limit').value = p.kw_limit ?? 20;
 
   document.getElementById('auth_enabled').checked = p.auth_enabled ?? false;
-  const authDays = p.auth_days || [4];
+  const authDays = p.auth_days || [];
   document.querySelectorAll('.auth-day').forEach(cb => { cb.checked = authDays.includes(parseInt(cb.value)); });
 
   updateDisabled();

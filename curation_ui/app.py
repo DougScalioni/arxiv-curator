@@ -214,7 +214,7 @@ def get_email_prefs(user_id: str) -> dict:
     result = db.table("email_prefs").select("*").eq("user_id", user_id).execute()
     if result.data:
         row = result.data[0]
-        # Migrate old single-digest schema to new split schema
+        # Migrate old single-digest schema
         if "kw_enabled" not in row:
             enabled = row.get("enabled", True)
             row["kw_enabled"] = enabled and row.get("include_keywords", True)
@@ -270,7 +270,7 @@ def api_save_email_prefs():
         "kw_days": data.get("kw_days", [4]),
         "kw_limit": max(1, int(data.get("kw_limit", 20))),
         "auth_enabled": bool(data.get("auth_enabled", False)),
-        "auth_days": data.get("auth_days", [4]),
+        "auth_days": data.get("auth_days", []),
     }
     db = get_admin_client()
     db.table("email_prefs").upsert(prefs).execute()
