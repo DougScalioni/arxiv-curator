@@ -1086,9 +1086,9 @@ function authorRowHtml(name) {
   </div>`;
 }
 
-function toggleFolderCollapse(folder) {
-  const items = document.getElementById(`afitems-${folder}`);
-  const btn = document.querySelector(`#afolder-${folder} .collapse-btn`);
+function toggleFolderCollapse(fid) {
+  const items = document.getElementById(`afitems-${fid}`);
+  const btn = items?.closest('.author-folder')?.querySelector('.collapse-btn');
   if (!items) return;
   const collapsed = items.classList.toggle('collapsed');
   if (btn) btn.textContent = collapsed ? '▶' : '▼';
@@ -1133,12 +1133,12 @@ function renderFollowedSidebar() {
   let html = ungrouped.sort().map(authorRowHtml).join('');
 
   [...folders.keys()].sort().forEach(folder => {
-    const fid = CSS.escape(folder);
+    const fid = btoa(unescape(encodeURIComponent(folder))).replace(/[^a-zA-Z0-9]/g, '_');
     html += `
     <div class="author-folder" id="afolder-${fid}">
       <div class="author-folder-header">
-        <button class="collapse-btn" onclick="toggleFolderCollapse('${escHtml(folder)}')" style="font-size:0.7em">▼</button>
-        <span class="author-folder-name" onclick="toggleFolderCollapse('${escHtml(folder)}')" title="${escHtml(folder)}">${escHtml(folder)}</span>
+        <button class="collapse-btn" onclick="toggleFolderCollapse('${fid}')" style="font-size:0.7em">▼</button>
+        <span class="author-folder-name" onclick="toggleFolderCollapse('${fid}')" title="${escHtml(folder)}">${escHtml(folder)}</span>
         <button class="rm-btn" onclick="renameFolder('${escHtml(folder)}')" title="rename">✎</button>
         <button class="rm-btn" onclick="deleteFolder('${escHtml(folder)}')" title="delete folder">✕</button>
       </div>
