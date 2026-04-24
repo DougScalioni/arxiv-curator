@@ -6,6 +6,7 @@ fixes:
 - arxiv author look up is weird.
 - add daily digest too, just like the weakly. Actually, think about this design.
 - Toggle dark/light mode.
+- bibtex
 
 some ideas:
 - click on author and take to author page on scholar, also with option to add author to list on dropdown list.

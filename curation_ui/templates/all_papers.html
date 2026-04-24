@@ -754,8 +754,9 @@ async function load() {
     .split(';').map(s => s.trim().toLowerCase()).filter(Boolean);
 
   const savedCats = sessionStorage.getItem('selectedCats');
-  if (savedCats) {
-    JSON.parse(savedCats).forEach(c => selectedCats.add(c));
+  const parsedCats = savedCats ? JSON.parse(savedCats) : null;
+  if (parsedCats && parsedCats.length > 0) {
+    parsedCats.forEach(c => selectedCats.add(c));
   } else {
     Object.keys(categoryCounts()).forEach(c => { if (matchesStartup(c)) selectedCats.add(c); });
   }

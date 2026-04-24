@@ -396,6 +396,19 @@ def _cleanup_old_papers():
     db.table("papers").delete().lt("date", cutoff).execute()
 
 
+def _maybe_fetch_today():
+    """Fetch today's papers if missing — runs at startup to recover from missed cron jobs."""
+    from datetime import date
+    if date.today().weekday() >= 5:
+        return
+    today = today_str()
+    db = get_admin_client()
+    result = db.table("papers").select("date").eq("date", today).execute()
+    if not result.data:
+        print(f"No papers found for {today} at startup — fetching now...")
+        _fetch_and_refresh()
+
+
 def _start_scheduler():
     from zoneinfo import ZoneInfo
     from utils.email import send_weekly_digest
@@ -404,6 +417,7 @@ def _start_scheduler():
     scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="mon,tue,wed,thu,fri", hour=0, minute=1)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=10, minute=0)
     scheduler.add_job(send_weekly_digest, "cron", hour=8, minute=1)
+    scheduler.add_job(_maybe_fetch_today, "date")  # one-shot at startup
     scheduler.start()
 
 
