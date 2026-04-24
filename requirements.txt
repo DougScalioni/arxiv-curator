@@ -7,3 +7,4 @@ supabase>=2.0
 python-dotenv>=1.0
 gunicorn>=21.0
 apscheduler>=3.10
+flask-compress>=1.14

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, g
+from flask_compress import Compress
 
 from utils.config import today_str
 from utils.supabase_client import get_admin_client, get_anon_client
@@ -18,6 +19,7 @@ from utils.supabase_client import get_admin_client, get_anon_client
 from datetime import timedelta
 
 app = Flask(__name__, template_folder="templates")
+Compress(app)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
 app.permanent_session_lifetime = timedelta(days=30)
 app.config["SESSION_COOKIE_SECURE"] = True
@@ -175,6 +177,9 @@ def get_raw_papers(date: str) -> list[dict]:
 
 
 def get_week_papers() -> list[dict]:
+    cache_key = "week"
+    if cache_key in _papers_cache:
+        return _papers_cache[cache_key]
     from datetime import date, timedelta
     db = get_admin_client()
     today = date.today()
@@ -188,6 +193,7 @@ def get_week_papers() -> list[dict]:
             if pid not in seen:
                 seen.add(pid)
                 merged.append(p)
+    _papers_cache[cache_key] = merged
     return merged
 
 
