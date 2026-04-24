@@ -203,10 +203,10 @@ def get_keywords(user_id: str) -> list[str]:
     return [r["keyword"] for r in result.data]
 
 
-def get_followed_authors(user_id: str) -> list[str]:
+def get_followed_authors(user_id: str) -> list[dict]:
     db = get_admin_client()
-    result = db.table("followed_authors").select("author_name").eq("user_id", user_id).execute()
-    return [r["author_name"] for r in result.data]
+    result = db.table("followed_authors").select("author_name,folder").eq("user_id", user_id).execute()
+    return [{"name": r["author_name"], "folder": r.get("folder")} for r in result.data]
 
 
 def get_reading_list(user_id: str) -> list[dict]:
@@ -308,10 +308,11 @@ def api_authors():
 def api_authors_follow():
     user = get_current_user()
     name = request.json.get("name", "").strip()
+    folder = request.json.get("folder") or None
     if not name:
         return jsonify({"ok": False, "error": "name required"}), 400
     db = get_admin_client()
-    db.table("followed_authors").upsert({"user_id": user.id, "author_name": name}).execute()
+    db.table("followed_authors").upsert({"user_id": user.id, "author_name": name, "folder": folder}).execute()
     return jsonify({"ok": True, "authors": get_followed_authors(user.id)})
 
 
@@ -322,6 +323,28 @@ def api_authors_unfollow():
     name = request.json.get("name", "").strip()
     db = get_admin_client()
     db.table("followed_authors").delete().eq("user_id", user.id).eq("author_name", name).execute()
+    return jsonify({"ok": True, "authors": get_followed_authors(user.id)})
+
+
+@app.route("/api/authors/move", methods=["POST"])
+@require_auth
+def api_authors_move():
+    user = get_current_user()
+    name = request.json.get("name", "").strip()
+    folder = request.json.get("folder") or None
+    db = get_admin_client()
+    db.table("followed_authors").update({"folder": folder}).eq("user_id", user.id).eq("author_name", name).execute()
+    return jsonify({"ok": True, "authors": get_followed_authors(user.id)})
+
+
+@app.route("/api/authors/rename-folder", methods=["POST"])
+@require_auth
+def api_authors_rename_folder():
+    user = get_current_user()
+    old = request.json.get("old", "").strip()
+    new = request.json.get("new", "").strip() or None
+    db = get_admin_client()
+    db.table("followed_authors").update({"folder": new}).eq("user_id", user.id).eq("folder", old).execute()
     return jsonify({"ok": True, "authors": get_followed_authors(user.id)})
 
 

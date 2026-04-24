@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS followed_authors (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   author_name TEXT NOT NULL,
+  folder TEXT,
   UNIQUE(user_id, author_name)
 );
 ALTER TABLE followed_authors ENABLE ROW LEVEL SECURITY;

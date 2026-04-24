@@ -326,6 +326,33 @@
   .group-header-l1 .group-count,
   .group-header-l2 .group-count { font-weight: normal; color: var(--text-dim); font-size: 0.8em; margin-left: 0.5em; }
 
+  /* Author folders */
+  .author-folder { margin-bottom: 0.35rem; }
+  .author-folder-header {
+    display: flex; align-items: center; gap: 0.2rem;
+    padding: 0.12rem 0; margin-bottom: 0.1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .author-folder-name {
+    flex: 1; font-size: 0.72em; font-weight: bold; color: var(--text-mid);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  }
+  .author-folder-name:hover { color: var(--red); }
+  .author-folder-items.collapsed { display: none; }
+
+  .author-menu-folder {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.75rem; border-top: 1px solid var(--border);
+    font-size: 0.82em; color: var(--text-mid);
+  }
+  .author-menu-folder label { white-space: nowrap; }
+  .author-menu-folder select, .author-menu-folder input {
+    flex: 1; font-family: inherit; font-size: 0.9em;
+    padding: 0.15em 0.3em; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); border-radius: 2px; outline: none; min-width: 0;
+  }
+
   .highlight { background: #fff176; border-radius: 1px; }
   .loading { text-align: center; padding: 3rem 1.5rem; color: var(--text-dim); font-style: italic; }
 
@@ -691,7 +718,7 @@ const DATE = "{{ date }}";
 let viewMode = 'day';
 let papers = [];
 let selectedCats = new Set();
-let followedAuthors = new Set();
+let followedAuthors = new Map(); // name → folder (null = ungrouped)
 let keywords = [];        // [string]
 let readingListIds = new Set();
 function baseId(id) { return (id || '').replace(/v\d+$/, ''); }
@@ -746,7 +773,7 @@ async function load() {
     fetch('/api/email-prefs'),
   ]);
   papers = (await papersRes.json()).papers;
-  followedAuthors = new Set((await authorsRes.json()).authors);
+  followedAuthors = new Map((await authorsRes.json()).authors.map(a => [a.name, a.folder ?? null]));
   keywords = (await kwRes.json()).keywords;
   readingListIds = new Set((await rlRes.json()).papers.map(p => baseId(p.id)));
   const prefs = await prefsRes.json();
@@ -1046,17 +1073,82 @@ function toggleAllNone() {
 
 /* ── Authors ── */
 
+function getFolders() {
+  const s = new Set();
+  for (const f of followedAuthors.values()) if (f) s.add(f);
+  return [...s].sort();
+}
+
+function authorRowHtml(name) {
+  return `<div class="item-row">
+    <span class="item-name">${escHtml(name)}</span>
+    <button class="rm-btn" onclick="unfollowAuthor('${escHtml(name)}')" title="unfollow">✕</button>
+  </div>`;
+}
+
+function toggleFolderCollapse(folder) {
+  const items = document.getElementById(`afitems-${folder}`);
+  const btn = document.querySelector(`#afolder-${folder} .collapse-btn`);
+  if (!items) return;
+  const collapsed = items.classList.toggle('collapsed');
+  if (btn) btn.textContent = collapsed ? '▶' : '▼';
+}
+
+async function moveAuthorToFolder(name, folder) {
+  const d = await apiPost('/api/authors/move', {name, folder: folder || null});
+  followedAuthors = new Map(d.authors.map(a => [a.name, a.folder ?? null]));
+  renderFollowedSidebar();
+  render();
+}
+
+async function renameFolder(old) {
+  const newName = prompt(`Rename folder "${old}" to:`, old);
+  if (!newName || !newName.trim() || newName.trim() === old) return;
+  const d = await apiPost('/api/authors/rename-folder', {old, new: newName.trim()});
+  followedAuthors = new Map(d.authors.map(a => [a.name, a.folder ?? null]));
+  renderFollowedSidebar();
+}
+
+async function deleteFolder(folder) {
+  if (!confirm(`Delete folder "${folder}"? Authors will become ungrouped.`)) return;
+  const d = await apiPost('/api/authors/rename-folder', {old: folder, new: ''});
+  followedAuthors = new Map(d.authors.map(a => [a.name, a.folder ?? null]));
+  renderFollowedSidebar();
+}
+
 function renderFollowedSidebar() {
   const el = document.getElementById('followed-list');
   if (!followedAuthors.size) {
     el.innerHTML = `<span class="empty-note">click an author name to follow</span>`;
     return;
   }
-  el.innerHTML = [...followedAuthors].sort().map(a => `
-    <div class="item-row">
-      <span class="item-name">${escHtml(a)}</span>
-      <button class="rm-btn" onclick="unfollowAuthor('${escHtml(a)}')" title="unfollow">✕</button>
-    </div>`).join('');
+
+  const ungrouped = [];
+  const folders = new Map();
+  for (const [name, folder] of followedAuthors) {
+    if (!folder) ungrouped.push(name);
+    else { if (!folders.has(folder)) folders.set(folder, []); folders.get(folder).push(name); }
+  }
+
+  let html = ungrouped.sort().map(authorRowHtml).join('');
+
+  [...folders.keys()].sort().forEach(folder => {
+    const fid = CSS.escape(folder);
+    html += `
+    <div class="author-folder" id="afolder-${fid}">
+      <div class="author-folder-header">
+        <button class="collapse-btn" onclick="toggleFolderCollapse('${escHtml(folder)}')" style="font-size:0.7em">▼</button>
+        <span class="author-folder-name" onclick="toggleFolderCollapse('${escHtml(folder)}')" title="${escHtml(folder)}">${escHtml(folder)}</span>
+        <button class="rm-btn" onclick="renameFolder('${escHtml(folder)}')" title="rename">✎</button>
+        <button class="rm-btn" onclick="deleteFolder('${escHtml(folder)}')" title="delete folder">✕</button>
+      </div>
+      <div class="author-folder-items" id="afitems-${fid}">
+        ${folders.get(folder).sort().map(authorRowHtml).join('')}
+      </div>
+    </div>`;
+  });
+
+  el.innerHTML = html;
 }
 
 let _authorMenu = null;
@@ -1098,6 +1190,38 @@ function openAuthorMenu(event, name) {
   arxivBtn.onclick = (e) => { e.stopPropagation(); window.open(`https://arxiv.org/search/?searchtype=author&query=${encodeURIComponent(name)}`, '_blank'); closeAuthorMenu(); };
   menu.appendChild(arxivBtn);
 
+  // Folder selector (only when author is followed)
+  if (followedAuthors.has(name)) {
+    const folderRow = document.createElement('div');
+    folderRow.className = 'author-menu-folder';
+    const lbl = document.createElement('label');
+    lbl.textContent = 'Folder:';
+    folderRow.appendChild(lbl);
+
+    const sel = document.createElement('select');
+    const currentFolder = followedAuthors.get(name) || '';
+    const folderOptions = [['', '(none)'], ...getFolders().map(f => [f, f]), ['__new__', 'New folder…']];
+    folderOptions.forEach(([val, text]) => {
+      const opt = document.createElement('option');
+      opt.value = val; opt.textContent = text;
+      if (val === currentFolder) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    sel.onclick = e => e.stopPropagation();
+    sel.onchange = async () => {
+      let target = sel.value;
+      if (target === '__new__') {
+        const n = prompt('New folder name:');
+        if (!n || !n.trim()) { sel.value = currentFolder; return; }
+        target = n.trim();
+      }
+      closeAuthorMenu();
+      await moveAuthorToFolder(name, target || null);
+    };
+    folderRow.appendChild(sel);
+    menu.appendChild(folderRow);
+  }
+
   // Position near the click
   document.body.appendChild(menu);
   const x = Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 8);
@@ -1116,7 +1240,7 @@ function closeAuthorMenu() {
 async function doFollowToggle(name) {
   const ep = followedAuthors.has(name) ? '/api/authors/unfollow' : '/api/authors/follow';
   const d = await apiPost(ep, {name});
-  followedAuthors = new Set(d.authors);
+  followedAuthors = new Map(d.authors.map(a => [a.name, a.folder ?? null]));
   renderFollowedSidebar();
   render();
 }
@@ -1128,7 +1252,7 @@ async function addAuthor() {
   const name = el.value.trim();
   if (!name) return;
   const d = await apiPost('/api/authors/follow', {name});
-  followedAuthors = new Set(d.authors);
+  followedAuthors = new Map(d.authors.map(a => [a.name, a.folder ?? null]));
   el.value = '';
   renderFollowedSidebar();
   render();

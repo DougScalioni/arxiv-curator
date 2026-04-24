@@ -1,21 +1,10 @@
 # arxiv-curator 
 
 fixes: 
-- clean up. Lots of folders with stuff that isn't being used. Would be nice to have a diagram describing everything.
-- make sure the login stays over sessions.
-- arxiv author look up is weird.
-- add daily digest too, just like the weakly. Actually, think about this design.
-- Toggle dark/light mode.
 - bibtex
 
 some ideas:
 - click on author and take to author page on scholar, also with option to add author to list on dropdown list.
-- separate by cross submissions, primary and replacements. Separate by field.
 - where to click to expand the listing.
 - public author lists.
-- statistics on authors.
-- citations.
-- email summary of the week.
-- deploy better so I can share this with other people, what's the best way to do that?.
-- list of universities. can't.
 - biorxiv?
