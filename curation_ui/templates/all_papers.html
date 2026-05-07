@@ -12,6 +12,7 @@
     --blue:      #1777bc;
     --blue-dark: #005e9d;
     --blue-bg:   #f0f6fc;
+    --blue-dim:  #7a96b0;
     --green:     #009917;
     --green-bg:  #f0faf0;
     --orange:    #d47500;
@@ -34,6 +35,7 @@
     --blue:      #5aadee;
     --blue-dark: #85c8ff;
     --blue-bg:   #0d1e2e;
+    --blue-dim:  #6a8faa;
     --green:     #4caf50;
     --green-bg:  #0d1f0e;
     --orange:    #ffaa44;
@@ -174,6 +176,9 @@
     border-radius: 2px; flex-shrink: 0; line-height: 1;
   }
   .item-row .rm-btn:hover { color: var(--red); background: var(--red-light); }
+
+  .item-name.author-today { color: var(--blue); font-weight: bold; }
+  .item-name.author-week  { color: var(--blue-dim); }
 
   .item-row.kw-active { background: var(--orange-bg); border-radius: 2px; }
   .item-row.kw-active .item-name { color: var(--orange); font-weight: bold; }
@@ -754,7 +759,9 @@ let followedAuthors = new Map(); // name → folder (null = ungrouped)
 let _pendingFolders = new Set(); // locally-created empty folders not yet persisted to DB
 let _draggingAuthor = null;      // name of the author currently being dragged
 let keywords = [];        // [string]
-let selectedKeyword = null; // keyword name to filter to, or null for no filter
+let selectedKeyword = null;
+let todayAuthorSet = new Set(); // authors with a paper in today's listing
+let weekAuthorSet  = new Set(); // authors with a paper anywhere this week // keyword name to filter to, or null for no filter
 let readingListIds = new Set();
 function baseId(id) { return (id || '').replace(/v\d+$/, ''); }
 let _scoreCache = new Map();
@@ -801,14 +808,18 @@ async function setView(mode) {
 }
 
 async function load() {
-  const [papersRes, authorsRes, kwRes, rlRes, prefsRes] = await Promise.all([
+  const [papersRes, weekRes, authorsRes, kwRes, rlRes, prefsRes] = await Promise.all([
     fetch(`/api/papers?date=${DATE}`),
+    fetch('/api/papers/week'),
     fetch('/api/authors'),
     fetch('/api/keywords'),
     fetch('/api/reading_list'),
     fetch('/api/email-prefs'),
   ]);
   papers = (await papersRes.json()).papers;
+  const weekPapers = (await weekRes.json()).papers;
+  todayAuthorSet = new Set(papers.flatMap(p => p.authors || []));
+  weekAuthorSet  = new Set(weekPapers.flatMap(p => p.authors || []));
   followedAuthors = new Map((await authorsRes.json()).authors.map(a => [a.name, a.folder ?? null]));
   keywords = (await kwRes.json()).keywords;
   readingListIds = new Set((await rlRes.json()).papers.map(p => baseId(p.id)));
@@ -1099,11 +1110,23 @@ function getFolders() {
   return [...s].sort();
 }
 
+function authorActivity(name) {
+  if (todayAuthorSet.has(name)) return 0; // has paper today
+  if (weekAuthorSet.has(name))  return 1; // has paper this week but not today
+  return 2;
+}
+
+function sortAuthors(names) {
+  return [...names].sort((a, b) => authorActivity(a) - authorActivity(b) || a.localeCompare(b));
+}
+
 function authorRowHtml(name) {
+  const act = authorActivity(name);
+  const actCls = act === 0 ? ' author-today' : act === 1 ? ' author-week' : '';
   return `<div class="item-row" draggable="true"
     ondragstart="onAuthorDragStart(event,'${escHtml(name)}')"
     ondragend="onAuthorDragEnd(event)">
-    <span class="item-name">${escHtml(name)}</span>
+    <span class="item-name${actCls}">${escHtml(name)}</span>
     <button class="rm-btn" onclick="unfollowAuthor('${escHtml(name)}')" title="unfollow">✕</button>
   </div>`;
 }
@@ -1171,7 +1194,7 @@ function renderFollowedSidebar() {
     ondragover="onDropZoneDragOver(event)"
     ondragleave="onDropZoneDragLeave(event)"
     ondrop="onUngroupedDrop(event)">`;
-  html += ungrouped.sort().map(authorRowHtml).join('');
+  html += sortAuthors(ungrouped).map(authorRowHtml).join('');
   if (!ungrouped.length && folderMap.size) {
     html += `<div class="drop-hint">drop here to remove from folder</div>`;
   }
@@ -1192,7 +1215,7 @@ function renderFollowedSidebar() {
         ondragover="onDropZoneDragOver(event)"
         ondragleave="onDropZoneDragLeave(event)"
         ondrop="onFolderDrop(event,'${escHtml(folder)}')">
-        ${authors.sort().map(authorRowHtml).join('')}
+        ${sortAuthors(authors).map(authorRowHtml).join('')}
         ${!authors.length ? '<div class="drop-hint">drop author here</div>' : ''}
       </div>
     </div>`;
