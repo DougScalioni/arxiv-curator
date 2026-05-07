@@ -449,7 +449,9 @@ def _start_scheduler():
     chicago = ZoneInfo("America/Chicago")
     scheduler = BackgroundScheduler(timezone=chicago)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=10, minute=0)
-    scheduler.add_job(send_weekly_digest, "cron", hour=8, minute=1)
+    # misfire_grace_time: if the machine restarts after 8:01 AM, still send the digest
+    # as long as we're within the same hour.
+    scheduler.add_job(send_weekly_digest, "cron", hour=8, minute=1, misfire_grace_time=3600)
     scheduler.add_job(_maybe_fetch_today, "date")  # one-shot at startup
     scheduler.start()
 
