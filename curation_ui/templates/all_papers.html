@@ -49,6 +49,11 @@
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
+  /* Prevent Safari from scrolling the page body when the mouse wheel fires over
+     a non-scrollable element (header, search bar, etc.). All scrolling should
+     happen inside .papers-panel and .sidebar. */
+  html { overflow: hidden; height: 100%; }
+
   body {
     font-family: 'Lucida Grande', Helvetica, Arial, Verdana, sans-serif;
     background: var(--bg);
@@ -58,6 +63,7 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    overflow: hidden;
   }
 
   a { color: var(--blue); text-decoration: none; }
@@ -1862,6 +1868,17 @@ function toggleSidebar() {
     else setOpen(isOpen); // snap back
   });
 })();
+
+// Redirect wheel events on the header/search-bar to the papers panel so
+// scrolling there still works naturally instead of doing nothing.
+document.querySelector('.search-bar').addEventListener('wheel', e => {
+  document.querySelector('.papers-panel').scrollBy({top: e.deltaY, behavior: 'instant'});
+  e.preventDefault();
+}, { passive: false });
+document.querySelector('.header').addEventListener('wheel', e => {
+  document.querySelector('.papers-panel').scrollBy({top: e.deltaY, behavior: 'instant'});
+  e.preventDefault();
+}, { passive: false });
 
 load();
 </script>
