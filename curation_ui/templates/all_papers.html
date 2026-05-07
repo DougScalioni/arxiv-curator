@@ -341,6 +341,25 @@
   .author-folder-name:hover { color: var(--red); }
   .author-folder-items.collapsed { display: none; }
 
+  /* "new folder" button in the section header */
+  .add-folder-btn {
+    font-family: inherit; font-size: 0.68em; padding: 0.1em 0.35em;
+    border: 1px solid var(--border); background: var(--bg);
+    color: var(--text-dim); cursor: pointer; border-radius: 2px;
+    margin-left: auto; margin-right: 0.3rem; white-space: nowrap; flex-shrink: 0;
+  }
+  .add-folder-btn:hover { border-color: var(--red); color: var(--red); }
+
+  /* Drag-and-drop */
+  .item-row[draggable="true"] { cursor: grab; }
+  .item-row.dragging { opacity: 0.35; }
+  .ungrouped-zone { min-height: 0.5rem; padding: 0.05rem 0; }
+  .ungrouped-zone.drag-over,
+  .author-folder-items.drag-over {
+    background: var(--blue-bg); outline: 1px dashed var(--blue); border-radius: 2px;
+  }
+  .drop-hint { font-size: 0.7em; color: var(--text-dim); font-style: italic; padding: 0.2rem 0.2rem; }
+
   .author-menu-folder {
     display: flex; align-items: center; gap: 0.4rem;
     padding: 0.35rem 0.75rem; border-top: 1px solid var(--border);
@@ -448,7 +467,9 @@
     <!-- Followed authors -->
     <div class="sidebar-section">
       <div class="sidebar-section-title" onclick="toggleSection(this)">
-        followed authors <span class="section-arrow">▼</span>
+        followed authors
+        <button class="add-folder-btn" onclick="event.stopPropagation(); createFolder()" title="create a new folder">+ folder</button>
+        <span class="section-arrow">▼</span>
       </div>
       <div class="sidebar-section-body">
         <div class="filter-row">
@@ -719,6 +740,8 @@ let viewMode = 'day';
 let papers = [];
 let selectedCats = new Set();
 let followedAuthors = new Map(); // name → folder (null = ungrouped)
+let _pendingFolders = new Set(); // locally-created empty folders not yet persisted to DB
+let _draggingAuthor = null;      // name of the author currently being dragged
 let keywords = [];        // [string]
 let readingListIds = new Set();
 function baseId(id) { return (id || '').replace(/v\d+$/, ''); }
@@ -1058,26 +1081,28 @@ function toggleAllNone() {
 /* ── Authors ── */
 
 function getFolders() {
-  const s = new Set();
+  const s = new Set(_pendingFolders);
   for (const f of followedAuthors.values()) if (f) s.add(f);
   return [...s].sort();
 }
 
 function authorRowHtml(name) {
-  return `<div class="item-row">
+  return `<div class="item-row" draggable="true"
+    ondragstart="onAuthorDragStart(event,'${escHtml(name)}')"
+    ondragend="onAuthorDragEnd(event)">
     <span class="item-name">${escHtml(name)}</span>
-    <button class="rm-btn" onclick="promptMoveAuthor('${escHtml(name)}')" title="assign to folder">📁</button>
     <button class="rm-btn" onclick="unfollowAuthor('${escHtml(name)}')" title="unfollow">✕</button>
   </div>`;
 }
 
-function promptMoveAuthor(name) {
-  const folders = getFolders();
-  const hint = folders.length ? `Existing: ${folders.join(', ')}` : 'No folders yet — type a name to create one.';
-  const current = followedAuthors.get(name) || '';
-  const target = prompt(`Folder for "${name}":\n${hint}\n\n(Leave blank to remove from folder)`, current);
-  if (target === null) return;
-  moveAuthorToFolder(name, target.trim() || null);
+function createFolder() {
+  const name = prompt('Folder name:');
+  if (!name || !name.trim()) return;
+  const folderName = name.trim();
+  if (!getFolders().includes(folderName)) {
+    _pendingFolders.add(folderName);
+    renderFollowedSidebar();
+  }
 }
 
 function toggleFolderCollapse(fid) {
@@ -1106,6 +1131,7 @@ async function renameFolder(old) {
 
 async function deleteFolder(folder) {
   if (!confirm(`Delete folder "${folder}"? Authors will become ungrouped.`)) return;
+  _pendingFolders.delete(folder);
   const d = await apiPost('/api/authors/rename-folder', {old: folder, new: ''});
   followedAuthors = new Map(d.authors.map(a => [a.name, a.folder ?? null]));
   renderFollowedSidebar();
@@ -1113,22 +1139,34 @@ async function deleteFolder(folder) {
 
 function renderFollowedSidebar() {
   const el = document.getElementById('followed-list');
-  if (!followedAuthors.size) {
+
+  const ungrouped = [];
+  const folderMap = new Map();
+  for (const [name, folder] of followedAuthors) {
+    if (!folder) ungrouped.push(name);
+    else { if (!folderMap.has(folder)) folderMap.set(folder, []); folderMap.get(folder).push(name); }
+  }
+  for (const f of _pendingFolders) { if (!folderMap.has(f)) folderMap.set(f, []); }
+
+  if (!followedAuthors.size && !folderMap.size) {
     el.innerHTML = `<span class="empty-note">click an author name to follow</span>`;
     return;
   }
 
-  const ungrouped = [];
-  const folders = new Map();
-  for (const [name, folder] of followedAuthors) {
-    if (!folder) ungrouped.push(name);
-    else { if (!folders.has(folder)) folders.set(folder, []); folders.get(folder).push(name); }
+  // Ungrouped zone is always a drop target so authors can be dragged out of folders
+  let html = `<div class="ungrouped-zone"
+    ondragover="onDropZoneDragOver(event)"
+    ondragleave="onDropZoneDragLeave(event)"
+    ondrop="onUngroupedDrop(event)">`;
+  html += ungrouped.sort().map(authorRowHtml).join('');
+  if (!ungrouped.length && folderMap.size) {
+    html += `<div class="drop-hint">drop here to remove from folder</div>`;
   }
+  html += `</div>`;
 
-  let html = ungrouped.sort().map(authorRowHtml).join('');
-
-  [...folders.keys()].sort().forEach(folder => {
-    const fid = btoa(unescape(encodeURIComponent(folder))).replace(/[^a-zA-Z0-9]/g, '_');
+  [...folderMap.keys()].sort().forEach(folder => {
+    const fid     = btoa(unescape(encodeURIComponent(folder))).replace(/[^a-zA-Z0-9]/g, '_');
+    const authors = folderMap.get(folder);
     html += `
     <div class="author-folder" id="afolder-${fid}">
       <div class="author-folder-header">
@@ -1137,13 +1175,62 @@ function renderFollowedSidebar() {
         <button class="rm-btn" onclick="renameFolder('${escHtml(folder)}')" title="rename">✎</button>
         <button class="rm-btn" onclick="deleteFolder('${escHtml(folder)}')" title="delete folder">✕</button>
       </div>
-      <div class="author-folder-items" id="afitems-${fid}">
-        ${folders.get(folder).sort().map(authorRowHtml).join('')}
+      <div class="author-folder-items" id="afitems-${fid}"
+        ondragover="onDropZoneDragOver(event)"
+        ondragleave="onDropZoneDragLeave(event)"
+        ondrop="onFolderDrop(event,'${escHtml(folder)}')">
+        ${authors.sort().map(authorRowHtml).join('')}
+        ${!authors.length ? '<div class="drop-hint">drop author here</div>' : ''}
       </div>
     </div>`;
   });
 
   el.innerHTML = html;
+}
+
+/* ── Author drag-and-drop ── */
+
+function onAuthorDragStart(event, name) {
+  _draggingAuthor = name;
+  event.dataTransfer.effectAllowed = 'move';
+  // Delay so the browser captures the normal appearance for the drag ghost image
+  setTimeout(() => event.target.closest('.item-row')?.classList.add('dragging'), 0);
+}
+
+function onAuthorDragEnd(event) {
+  _draggingAuthor = null;
+  document.querySelectorAll('.item-row.dragging').forEach(el => el.classList.remove('dragging'));
+  document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+
+function onDropZoneDragOver(event) {
+  if (!_draggingAuthor) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  event.currentTarget.classList.add('drag-over');
+}
+
+function onDropZoneDragLeave(event) {
+  // Only remove the highlight when the pointer truly leaves the zone,
+  // not when it moves into a child element.
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    event.currentTarget.classList.remove('drag-over');
+  }
+}
+
+async function onFolderDrop(event, folder) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  if (!_draggingAuthor) return;
+  _pendingFolders.delete(folder); // folder is now persisted via the author
+  await moveAuthorToFolder(_draggingAuthor, folder);
+}
+
+async function onUngroupedDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  if (!_draggingAuthor) return;
+  await moveAuthorToFolder(_draggingAuthor, null);
 }
 
 let _authorMenu = null;
