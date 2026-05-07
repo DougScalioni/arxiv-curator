@@ -1,4 +1,4 @@
-"""Flask UI for browsing arxiv papers."""
+"""Flask UI for browsing arXiv papers."""
 from __future__ import annotations
 import os
 import json
@@ -22,15 +22,17 @@ app = Flask(__name__, template_folder="templates")
 Compress(app)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
 app.permanent_session_lifetime = timedelta(days=30)
-app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SECURE"]   = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 
-# ── Auth helpers ──────────────────────────────────────────────────────────────
+# ── Auth helpers ───────────────────────────────────────────────────────────────
 
 def _jwt_exp(token: str) -> float:
-    """Return the expiry timestamp from a JWT without verifying the signature."""
+    """Return the expiry timestamp from a JWT without verifying the signature.
+    We only need the expiry to decide whether to refresh — Supabase verifies
+    the signature properly when we call refresh_session or get_user."""
     try:
         payload = token.split('.')[1]
         payload += '=' * (-len(payload) % 4)
@@ -40,7 +42,14 @@ def _jwt_exp(token: str) -> float:
 
 
 def get_current_user():
-    """Return the Supabase user for the current session, or None."""
+    """Return the Supabase user for the current session, or None.
+
+    Strategy:
+    - If the JWT is still valid, use the cached user_id (no network call).
+    - If expired, try to refresh via the refresh token.
+    - If refresh fails (transient error), fall back to cached identity so a
+      brief network hiccup doesn't log the user out.
+    """
     if "user" in g:
         return g.user
 
@@ -52,31 +61,31 @@ def get_current_user():
     from types import SimpleNamespace
     cached_user_id = session.get("user_id")
 
-    # Token still valid — use cached user info, no network call.
     if time.time() < _jwt_exp(token) - 60:
+        # Token still valid — serve from session cache, no network round-trip.
         if cached_user_id:
             g.user = SimpleNamespace(id=cached_user_id, email=session.get("user_email"))
             return g.user
 
-    # Token expired — go straight to refresh (calling get_user with an expired
-    # token always fails and just wastes a network round-trip).
+    # Token expired — refresh it. Calling get_user with an expired token always
+    # fails, so we skip straight to refresh_session.
     refresh = session.get("refresh_token")
     if refresh:
         try:
-            client = get_anon_client()
+            client   = get_anon_client()
             response = client.auth.refresh_session(refresh)
-            session["access_token"] = response.session.access_token
+            session["access_token"]  = response.session.access_token
             session["refresh_token"] = response.session.refresh_token
             user = response.session.user
-            session["user_id"] = user.id
+            session["user_id"]    = user.id
             session["user_email"] = getattr(user, "email", None)
             g.user = user
             return g.user
         except Exception:
             pass
 
-    # Refresh failed (transient network error) — keep user logged in using
-    # cached identity rather than forcing a re-login.
+    # Refresh failed — keep the user logged in using cached identity rather
+    # than forcing a re-login over what may be a transient network error.
     if cached_user_id:
         g.user = SimpleNamespace(id=cached_user_id, email=session.get("user_email"))
         return g.user
@@ -97,7 +106,7 @@ def require_auth(f):
     return decorated
 
 
-# ── Auth routes ───────────────────────────────────────────────────────────────
+# ── Auth routes ────────────────────────────────────────────────────────────────
 
 @app.route("/login", methods=["GET"])
 def login():
@@ -113,7 +122,7 @@ def login_post():
     if not email:
         return render_template("login.html", error="Please enter your email.")
     try:
-        client = get_anon_client()
+        client       = get_anon_client()
         redirect_url = url_for("auth_callback", _external=True)
         client.auth.sign_in_with_otp({
             "email": email,
@@ -128,27 +137,27 @@ def login_post():
 def auth_callback():
     """Landing page after clicking the magic link.
     Supabase redirects here with tokens in the URL fragment (#).
-    A small JS snippet reads the fragment and POSTs it to /auth/set-session."""
+    A small JS snippet reads the fragment and POSTs the tokens to /auth/set-session."""
     return render_template("login.html", callback=True)
 
 
 @app.route("/auth/set-session", methods=["POST"])
 def set_session():
-    """Receive access/refresh tokens from the client-side fragment and store in session."""
-    data = request.json or {}
-    access_token = data.get("access_token", "").strip()
+    """Receive access/refresh tokens from the client-side fragment and persist to session."""
+    data          = request.json or {}
+    access_token  = data.get("access_token", "").strip()
     refresh_token = data.get("refresh_token", "").strip()
     if not access_token:
         return jsonify({"ok": False, "error": "no token"}), 400
     try:
-        client = get_anon_client()
+        client   = get_anon_client()
         response = client.auth.get_user(access_token)
         if response.user:
-            session.permanent = True
-            session["access_token"] = access_token
+            session.permanent        = True
+            session["access_token"]  = access_token
             session["refresh_token"] = refresh_token
-            session["user_id"] = response.user.id
-            session["user_email"] = getattr(response.user, "email", None)
+            session["user_id"]       = response.user.id
+            session["user_email"]    = getattr(response.user, "email", None)
             return jsonify({"ok": True})
     except Exception:
         pass
@@ -161,14 +170,17 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ── DB helpers ────────────────────────────────────────────────────────────────
+# ── DB helpers ─────────────────────────────────────────────────────────────────
 
-_papers_cache: dict = {}  # date -> list[dict], one entry kept at a time
+# Simple in-memory cache for paper data. Safe because gunicorn runs a single
+# worker — multiple workers would each have their own cache, which is fine.
+_papers_cache: dict = {}
+
 
 def get_raw_papers(date: str) -> list[dict]:
     if date in _papers_cache:
         return _papers_cache[date]
-    db = get_admin_client()
+    db     = get_admin_client()
     result = db.table("papers").select("papers").eq("date", date).execute()
     papers = result.data[0]["papers"] if result.data else []
     _papers_cache.clear()
@@ -181,9 +193,9 @@ def get_week_papers() -> list[dict]:
     if cache_key in _papers_cache:
         return _papers_cache[cache_key]
     from datetime import date, timedelta
-    db = get_admin_client()
-    today = date.today()
-    dates = [(today - timedelta(days=i)).isoformat() for i in range(7)]
+    db     = get_admin_client()
+    today  = date.today()
+    dates  = [(today - timedelta(days=i)).isoformat() for i in range(7)]
     result = db.table("papers").select("papers").in_("date", dates).execute()
     seen: set[str] = set()
     merged: list[dict] = []
@@ -198,50 +210,37 @@ def get_week_papers() -> list[dict]:
 
 
 def get_keywords(user_id: str) -> list[str]:
-    db = get_admin_client()
+    db     = get_admin_client()
     result = db.table("keywords").select("keyword").eq("user_id", user_id).execute()
     return [r["keyword"] for r in result.data]
 
 
 def get_followed_authors(user_id: str) -> list[dict]:
-    db = get_admin_client()
-    try:
-        result = db.table("followed_authors").select("author_name,folder").eq("user_id", user_id).execute()
-        return [{"name": r["author_name"], "folder": r.get("folder")} for r in result.data]
-    except Exception:
-        # folder column not yet migrated — fall back to name-only
-        result = db.table("followed_authors").select("author_name").eq("user_id", user_id).execute()
-        return [{"name": r["author_name"], "folder": None} for r in result.data]
+    db     = get_admin_client()
+    result = db.table("followed_authors").select("author_name,folder").eq("user_id", user_id).execute()
+    return [{"name": r["author_name"], "folder": r.get("folder")} for r in result.data]
 
 
 def get_reading_list(user_id: str) -> list[dict]:
-    db = get_admin_client()
+    db     = get_admin_client()
     result = db.table("reading_list").select("paper_json").eq("user_id", user_id).execute()
     return [r["paper_json"] for r in result.data]
 
 
 def get_email_prefs(user_id: str) -> dict:
-    db = get_admin_client()
+    db     = get_admin_client()
     result = db.table("email_prefs").select("*").eq("user_id", user_id).execute()
     if result.data:
-        row = result.data[0]
-        # Migrate old single-digest schema
-        if "kw_enabled" not in row:
-            enabled = row.get("enabled", True)
-            row["kw_enabled"] = enabled and row.get("include_keywords", True)
-            row["kw_days"] = [row.get("day_of_week", 4)]
-            row["kw_limit"] = row.get("keyword_limit", 20)
-            row["auth_enabled"] = enabled and row.get("include_authors", False)
-            row["auth_days"] = [row.get("day_of_week", 4)]
-        return row
+        return result.data[0]
+    # Defaults for users who have never saved their preferences.
     return {
         "startup_categories": "",
-        "kw_enabled": True,  "kw_days": [4], "kw_limit": 20,
-        "auth_enabled": False, "auth_days": [4],
+        "kw_enabled":   True,  "kw_days": [4], "kw_limit": 20,
+        "auth_enabled": False, "auth_days": [],
     }
 
 
-# ── App routes ────────────────────────────────────────────────────────────────
+# ── App routes ─────────────────────────────────────────────────────────────────
 
 @app.route("/")
 @require_auth
@@ -273,15 +272,15 @@ def api_get_email_prefs():
 @require_auth
 def api_save_email_prefs():
     user = get_current_user()
-    data = request.json or {}
+    data  = request.json or {}
     prefs = {
-        "user_id": user.id,
+        "user_id":            user.id,
         "startup_categories": data.get("startup_categories", ""),
-        "kw_enabled": bool(data.get("kw_enabled", True)),
-        "kw_days": data.get("kw_days", [4]),
-        "kw_limit": max(1, int(data.get("kw_limit", 20))),
-        "auth_enabled": bool(data.get("auth_enabled", False)),
-        "auth_days": data.get("auth_days", []),
+        "kw_enabled":         bool(data.get("kw_enabled", True)),
+        "kw_days":            data.get("kw_days", [4]),
+        "kw_limit":           max(1, int(data.get("kw_limit", 20))),
+        "auth_enabled":       bool(data.get("auth_enabled", False)),
+        "auth_days":          data.get("auth_days", []),
     }
     db = get_admin_client()
     db.table("email_prefs").upsert(prefs).execute()
@@ -311,8 +310,8 @@ def api_authors():
 @app.route("/api/authors/follow", methods=["POST"])
 @require_auth
 def api_authors_follow():
-    user = get_current_user()
-    name = request.json.get("name", "").strip()
+    user   = get_current_user()
+    name   = request.json.get("name", "").strip()
     folder = request.json.get("folder") or None
     if not name:
         return jsonify({"ok": False, "error": "name required"}), 400
@@ -326,7 +325,7 @@ def api_authors_follow():
 def api_authors_unfollow():
     user = get_current_user()
     name = request.json.get("name", "").strip()
-    db = get_admin_client()
+    db   = get_admin_client()
     db.table("followed_authors").delete().eq("user_id", user.id).eq("author_name", name).execute()
     return jsonify({"ok": True, "authors": get_followed_authors(user.id)})
 
@@ -334,10 +333,10 @@ def api_authors_unfollow():
 @app.route("/api/authors/move", methods=["POST"])
 @require_auth
 def api_authors_move():
-    user = get_current_user()
-    name = request.json.get("name", "").strip()
+    user   = get_current_user()
+    name   = request.json.get("name", "").strip()
     folder = request.json.get("folder") or None
-    db = get_admin_client()
+    db     = get_admin_client()
     db.table("followed_authors").update({"folder": folder}).eq("user_id", user.id).eq("author_name", name).execute()
     return jsonify({"ok": True, "authors": get_followed_authors(user.id)})
 
@@ -346,9 +345,9 @@ def api_authors_move():
 @require_auth
 def api_authors_rename_folder():
     user = get_current_user()
-    old = request.json.get("old", "").strip()
-    new = request.json.get("new", "").strip() or None
-    db = get_admin_client()
+    old  = request.json.get("old", "").strip()
+    new  = request.json.get("new", "").strip() or None
+    db   = get_admin_client()
     db.table("followed_authors").update({"folder": new}).eq("user_id", user.id).eq("folder", old).execute()
     return jsonify({"ok": True, "authors": get_followed_authors(user.id)})
 
@@ -377,7 +376,7 @@ def api_keywords_add():
 def api_keywords_remove():
     user = get_current_user()
     name = request.json.get("name", "").strip().lower()
-    db = get_admin_client()
+    db   = get_admin_client()
     db.table("keywords").delete().eq("user_id", user.id).eq("keyword", name).execute()
     return jsonify({"ok": True, "keywords": get_keywords(user.id)})
 
@@ -392,14 +391,14 @@ def api_reading_list():
 @app.route("/api/reading_list/add", methods=["POST"])
 @require_auth
 def api_reading_list_add():
-    user = get_current_user()
+    user  = get_current_user()
     paper = request.json.get("paper")
     if not paper or not paper.get("id"):
         return jsonify({"ok": False, "error": "paper required"}), 400
     db = get_admin_client()
     db.table("reading_list").upsert({
-        "user_id": user.id,
-        "paper_id": paper["id"],
+        "user_id":    user.id,
+        "paper_id":   paper["id"],
         "paper_json": paper,
     }).execute()
     papers = get_reading_list(user.id)
@@ -409,13 +408,15 @@ def api_reading_list_add():
 @app.route("/api/reading_list/remove", methods=["POST"])
 @require_auth
 def api_reading_list_remove():
-    user = get_current_user()
+    user     = get_current_user()
     paper_id = request.json.get("id", "").strip()
-    db = get_admin_client()
+    db       = get_admin_client()
     db.table("reading_list").delete().eq("user_id", user.id).eq("paper_id", paper_id).execute()
     papers = get_reading_list(user.id)
     return jsonify({"ok": True, "ids": [p["id"] for p in papers]})
 
+
+# ── Scheduler ──────────────────────────────────────────────────────────────────
 
 def _fetch_and_refresh():
     from fetcher.fetch import main as fetch_main
@@ -425,18 +426,18 @@ def _fetch_and_refresh():
 
 def _cleanup_old_papers():
     from datetime import date, timedelta
-    db = get_admin_client()
+    db     = get_admin_client()
     cutoff = (date.today() - timedelta(days=7)).isoformat()
     db.table("papers").delete().lt("date", cutoff).execute()
 
 
 def _maybe_fetch_today():
-    """Fetch today's papers if missing — runs at startup to recover from missed cron jobs."""
+    """Fetch today's papers if missing — runs once at startup to recover from missed jobs."""
     from datetime import date
     if date.today().weekday() >= 5:
         return
-    today = today_str()
-    db = get_admin_client()
+    today  = today_str()
+    db     = get_admin_client()
     result = db.table("papers").select("date").eq("date", today).execute()
     if not result.data:
         print(f"No papers found for {today} at startup — fetching now...")
@@ -446,11 +447,11 @@ def _maybe_fetch_today():
 def _start_scheduler():
     from zoneinfo import ZoneInfo
     from utils.email import send_weekly_digest
-    chicago = ZoneInfo("America/Chicago")
+    chicago   = ZoneInfo("America/Chicago")
     scheduler = BackgroundScheduler(timezone=chicago)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=10, minute=0)
-    # misfire_grace_time: if the machine restarts after 8:01 AM, still send the digest
-    # as long as we're within the same hour.
+    # misfire_grace_time: if the machine restarts after 8:01 AM, still send the
+    # digest as long as we're within the same hour.
     scheduler.add_job(send_weekly_digest, "cron", hour=8, minute=1, misfire_grace_time=3600)
     scheduler.add_job(_maybe_fetch_today, "date")  # one-shot at startup
     scheduler.start()
@@ -461,6 +462,7 @@ if os.environ.get("FLASK_ENV") != "development":
 
 
 def main():
+    """Entry point for local development only (python -m curation_ui)."""
     print("Starting arxiv browser at http://localhost:5000")
     print("Press Ctrl+C to stop")
     app.run(host="0.0.0.0", port=5000, debug=True)

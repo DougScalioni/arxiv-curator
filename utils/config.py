@@ -4,13 +4,12 @@ import yaml
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).parent.parent
-CONFIG_PATH = PROJECT_ROOT / "config.yaml"
-DATA_DIR = PROJECT_ROOT / "data"
+CONFIG_PATH  = PROJECT_ROOT / "config.yaml"
 
 
-def load_config():
-    """Load config.yaml with ${ENV_VAR} substitution.
-    Falls back to config.example.yaml (used in CI where config.yaml is gitignored)."""
+def load_config() -> dict:
+    """Load config.yaml, substituting ${ENV_VAR} placeholders.
+    Falls back to config.example.yaml so CI works without a local config.yaml."""
     path = CONFIG_PATH if CONFIG_PATH.exists() else PROJECT_ROOT / "config.example.yaml"
     if not path.exists():
         raise FileNotFoundError(
@@ -23,16 +22,9 @@ def load_config():
     return yaml.safe_load(text)
 
 
-def ensure_dirs():
-    """Create data directories if needed."""
-    for sub in ("raw", "scored", "curated"):
-        (DATA_DIR / sub).mkdir(parents=True, exist_ok=True)
-    return DATA_DIR
-
-
-def today_str():
-    """Today's date as YYYY-MM-DD in Chicago time.
-    Snaps back to Friday on weekends — arxiv doesn't post Sat/Sun."""
+def today_str() -> str:
+    """Return today's date as YYYY-MM-DD in Chicago time.
+    On weekends, snaps back to Friday — arXiv doesn't post new papers Sat/Sun."""
     from datetime import datetime, timedelta
     from zoneinfo import ZoneInfo
     d = datetime.now(ZoneInfo("America/Chicago")).date()

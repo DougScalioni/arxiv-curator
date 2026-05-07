@@ -8,10 +8,11 @@ from datetime import date, timedelta
 
 
 def _get_week_papers() -> list[dict]:
+    """Return all unique papers from the past 7 days (Chicago time)."""
     from utils.supabase_client import get_admin_client
-    db = get_admin_client()
     from datetime import datetime
     from zoneinfo import ZoneInfo
+    db    = get_admin_client()
     today = datetime.now(ZoneInfo("America/Chicago")).date()
     dates = [(today - timedelta(days=i)).isoformat() for i in range(7)]
     result = db.table("papers").select("papers").in_("date", dates).execute()
@@ -27,10 +28,11 @@ def _get_week_papers() -> list[dict]:
 
 
 def _top_by_keywords(papers: list[dict], keywords: list[str], limit: int = 20) -> list[tuple[dict, list[str]]]:
+    """Return up to `limit` papers sorted by number of keyword matches (descending)."""
     kw_lower = [kw.lower() for kw in keywords]
     scored = []
     for p in papers:
-        text = ((p.get("title") or "") + " " + (p.get("abstract") or "")).lower()
+        text    = ((p.get("title") or "") + " " + (p.get("abstract") or "")).lower()
         matched = [kw for kw in kw_lower if kw in text]
         if matched:
             scored.append((p, matched))
@@ -39,6 +41,7 @@ def _top_by_keywords(papers: list[dict], keywords: list[str], limit: int = 20) -
 
 
 def _by_authors(papers: list[dict], authors: list[str], exclude_ids: set[str]) -> list[tuple[dict, list[str]]]:
+    """Return all papers by followed authors, excluding IDs already in the keyword section."""
     author_set = {a.lower() for a in authors}
     result = []
     for p in papers:
@@ -51,11 +54,11 @@ def _by_authors(papers: list[dict], authors: list[str], exclude_ids: set[str]) -
 
 
 def _paper_row(i: int, p: dict, detail_html: str) -> str:
-    authors = p.get("authors", [])
+    authors    = p.get("authors", [])
     author_str = ", ".join(authors[:5]) + (" et al." if len(authors) > 5 else "")
-    url = p.get("url", "#")
-    pdf = p.get("pdf_url", "")
-    pdf_link = f'<a href="{pdf}" style="font-size:11px;color:#1777bc;margin-left:8px;">PDF</a>' if pdf else ""
+    url        = p.get("url", "#")
+    pdf        = p.get("pdf_url", "")
+    pdf_link   = f'<a href="{pdf}" style="font-size:11px;color:#1777bc;margin-left:8px;">PDF</a>' if pdf else ""
     return f"""
     <tr>
       <td style="padding:12px 0;border-bottom:1px solid #eee;vertical-align:top;">
@@ -85,8 +88,8 @@ def _build_html(kw_papers: list[tuple[dict, list[str]]],
                 author_papers: list[tuple[dict, list[str]]],
                 keywords: list[str]) -> str:
     week_start = (date.today() - timedelta(days=6)).strftime("%b %d")
-    week_end = date.today().strftime("%b %d, %Y")
-    kw_list = ", ".join(keywords) if keywords else ""
+    week_end   = date.today().strftime("%b %d, %Y")
+    kw_list    = ", ".join(keywords) if keywords else ""
 
     sections = []
     if author_papers:
@@ -96,11 +99,12 @@ def _build_html(kw_papers: list[tuple[dict, list[str]]],
 
     if kw_papers:
         offset = len(author_papers)
-        rows = "".join(_paper_row(offset + i, p, "keywords: " + ", ".join(m))
-                       for i, (p, m) in enumerate(kw_papers, 1))
+        rows   = "".join(_paper_row(offset + i, p, "keywords: " + ", ".join(m))
+                         for i, (p, m) in enumerate(kw_papers, 1))
         sections.append(_section(f"Top {len(kw_papers)} keyword matches", rows))
 
-    kw_line = f'<div style="font-size:12px;color:#888;margin-top:4px;">Keywords: <span style="color:#555;">{kw_list}</span></div>' if kw_list else ""
+    kw_line = (f'<div style="font-size:12px;color:#888;margin-top:4px;">'
+               f'Keywords: <span style="color:#555;">{kw_list}</span></div>') if kw_list else ""
 
     return f"""<!DOCTYPE html>
 <html>
@@ -120,7 +124,7 @@ def _build_html(kw_papers: list[tuple[dict, list[str]]],
   </td></tr>
   <tr><td style="padding:12px 24px;border-top:1px solid #eee;font-size:11px;color:#bbb;text-align:center;">
     <a href="https://arxiv-curator.fly.dev" style="color:#bbb;">open app</a> &middot;
-    <a href="https://arxiv-curator.fly.dev/email-settings" style="color:#bbb;">email settings</a>
+    <a href="https://arxiv-curator.fly.dev/settings" style="color:#bbb;">email settings</a>
   </td></tr>
 </table>
 </body>
@@ -128,54 +132,48 @@ def _build_html(kw_papers: list[tuple[dict, list[str]]],
 
 
 def send_weekly_digest() -> None:
+    """Send the weekly digest to all users whose preferences match today's day of week."""
     from utils.supabase_client import get_admin_client
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
 
-    gmail_user = os.environ.get("GMAIL_USER")
+    gmail_user     = os.environ.get("GMAIL_USER")
     gmail_password = os.environ.get("GMAIL_APP_PASSWORD")
     if not gmail_user or not gmail_password:
         print("Weekly digest skipped: GMAIL_USER or GMAIL_APP_PASSWORD not configured")
         return
 
-    from datetime import datetime
-    from zoneinfo import ZoneInfo
-    today_dow = datetime.now(ZoneInfo("America/Chicago")).weekday()  # 0=Mon, 4=Fri, 6=Sun
-    db = get_admin_client()
+    today_dow = datetime.now(ZoneInfo("America/Chicago")).weekday()  # 0=Mon … 6=Sun
+    db     = get_admin_client()
     papers = _get_week_papers()
     if not papers:
         print("Weekly digest: no papers this week")
         return
 
     subject = f"arXiv digest — week of {(date.today() - timedelta(days=6)).strftime('%b %d')}"
-    users = db.auth.admin.list_users()
-    sent = 0
+    users   = db.auth.admin.list_users()
+    sent    = 0
 
+    # Open a single SMTP connection and reuse it for all recipients to avoid
+    # reconnecting for every user.
     with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
         server.login(gmail_user, gmail_password)
 
         for user in users:
-            email = getattr(user, "email", None)
+            email   = getattr(user, "email", None)
             user_id = getattr(user, "id", None)
             if not email or not user_id:
                 continue
 
             pref_result = db.table("email_prefs").select("*").eq("user_id", user_id).execute()
-            prefs = pref_result.data[0] if pref_result.data else {}
+            prefs       = pref_result.data[0] if pref_result.data else {}
 
-            # Support old single-digest schema
-            if "kw_enabled" not in prefs:
-                old_enabled  = prefs.get("enabled", True)
-                kw_enabled   = old_enabled and prefs.get("include_keywords", True)
-                auth_enabled = old_enabled and prefs.get("include_authors", False)
-                kw_days   = [prefs.get("day_of_week", 4)]
-                auth_days = [prefs.get("day_of_week", 4)]
-                kw_limit  = max(1, int(prefs.get("keyword_limit", 20)))
-            else:
-                kw_enabled   = prefs.get("kw_enabled", False)
-                auth_enabled = prefs.get("auth_enabled", False)
-                kw_days   = prefs.get("kw_days", [4])
-                auth_days = prefs.get("auth_days", [])
-                kw_limit  = max(1, int(prefs.get("kw_limit", 20)))
+            kw_enabled   = prefs.get("kw_enabled",   True)   # default True for users with no saved prefs
+            auth_enabled = prefs.get("auth_enabled",  False)
+            kw_days      = prefs.get("kw_days",       [4])    # default: Friday
+            auth_days    = prefs.get("auth_days",     [])
+            kw_limit     = max(1, int(prefs.get("kw_limit", 20)))
 
             send_kw   = kw_enabled   and today_dow in kw_days
             send_auth = auth_enabled and today_dow in auth_days
@@ -183,9 +181,9 @@ def send_weekly_digest() -> None:
                 continue
 
             kw_papers: list[tuple[dict, list[str]]] = []
-            keywords: list[str] = []
+            keywords:  list[str]                    = []
             if send_kw:
-                kw_data = db.table("keywords").select("keyword").eq("user_id", user_id).execute()
+                kw_data  = db.table("keywords").select("keyword").eq("user_id", user_id).execute()
                 keywords = [r["keyword"] for r in kw_data.data]
                 if keywords:
                     kw_papers = _top_by_keywords(papers, keywords, kw_limit)
@@ -193,19 +191,19 @@ def send_weekly_digest() -> None:
             author_papers: list[tuple[dict, list[str]]] = []
             if send_auth:
                 auth_data = db.table("followed_authors").select("author_name").eq("user_id", user_id).execute()
-                authors = [r["author_name"] for r in auth_data.data]
+                authors   = [r["author_name"] for r in auth_data.data]
                 if authors:
-                    exclude = {p.get("id") for p, _ in kw_papers}
+                    exclude       = {p.get("id") for p, _ in kw_papers}
                     author_papers = _by_authors(papers, authors, exclude)
 
             if not kw_papers and not author_papers:
                 continue
 
             html = _build_html(kw_papers, author_papers, keywords)
-            msg = MIMEMultipart("alternative")
+            msg  = MIMEMultipart("alternative")
             msg["Subject"] = subject
-            msg["From"] = gmail_user
-            msg["To"] = email
+            msg["From"]    = gmail_user
+            msg["To"]      = email
             msg.attach(MIMEText(html, "html"))
 
             try:

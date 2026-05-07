@@ -944,22 +944,6 @@ function toggleGroupsExpand() {
   document.getElementById('btn-groups').textContent = groupsExpanded ? 'collapse' : 'expand';
 }
 
-function expandAllGroups() {
-  groupsExpanded = true;
-  document.querySelectorAll('.cat-group-items').forEach(el => el.classList.remove('collapsed'));
-  document.querySelectorAll('.collapse-btn').forEach(btn => btn.textContent = '▼');
-  const btn = document.getElementById('btn-groups');
-  if (btn) btn.textContent = 'collapse';
-}
-
-function collapseAllGroups() {
-  groupsExpanded = false;
-  document.querySelectorAll('.cat-group-items').forEach(el => el.classList.add('collapsed'));
-  document.querySelectorAll('.collapse-btn').forEach(btn => btn.textContent = '▶');
-  const btn = document.getElementById('btn-groups');
-  if (btn) btn.textContent = 'expand';
-}
-
 function soloCategory(cat) {
   // Deselect all, then select only this one category
   document.querySelectorAll('#cat-list input[type="checkbox"][value]').forEach(cb => {
@@ -1256,7 +1240,7 @@ async function doFollowToggle(name) {
   render();
 }
 
-function unfollowAuthor(name) { return doFollowToggle(name); }
+function unfollowAuthor(name) { doFollowToggle(name); }
 
 async function addAuthor() {
   const el = document.getElementById('author-name');
