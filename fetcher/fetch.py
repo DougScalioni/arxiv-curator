@@ -104,8 +104,18 @@ def fetch_details(ids: list[str]) -> list[dict]:
 
 
 def main():
+    from datetime import date as date_cls
+    if date_cls.today().weekday() >= 5:
+        print("Weekend — skipping fetch.")
+        return
+
     config = load_config()
     date = today_str()
+
+    db = get_admin_client()
+    if db.table("papers").select("date").eq("date", date).execute().data:
+        print(f"Papers for {date} already in DB — skipping.")
+        return
 
     categories = config.get("categories", ["physics"])
     print(f"Fetching today's new arxiv papers for {date}...")

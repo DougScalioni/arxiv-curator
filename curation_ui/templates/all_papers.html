@@ -1082,8 +1082,18 @@ function getFolders() {
 function authorRowHtml(name) {
   return `<div class="item-row">
     <span class="item-name">${escHtml(name)}</span>
+    <button class="rm-btn" onclick="promptMoveAuthor('${escHtml(name)}')" title="assign to folder">📁</button>
     <button class="rm-btn" onclick="unfollowAuthor('${escHtml(name)}')" title="unfollow">✕</button>
   </div>`;
+}
+
+function promptMoveAuthor(name) {
+  const folders = getFolders();
+  const hint = folders.length ? `Existing: ${folders.join(', ')}` : 'No folders yet — type a name to create one.';
+  const current = followedAuthors.get(name) || '';
+  const target = prompt(`Folder for "${name}":\n${hint}\n\n(Leave blank to remove from folder)`, current);
+  if (target === null) return;
+  moveAuthorToFolder(name, target.trim() || null);
 }
 
 function toggleFolderCollapse(fid) {
@@ -1096,6 +1106,7 @@ function toggleFolderCollapse(fid) {
 
 async function moveAuthorToFolder(name, folder) {
   const d = await apiPost('/api/authors/move', {name, folder: folder || null});
+  if (!d.ok) { alert('Could not save folder assignment: ' + (d.error || 'server error')); return; }
   followedAuthors = new Map(d.authors.map(a => [a.name, a.folder ?? null]));
   renderFollowedSidebar();
   render();

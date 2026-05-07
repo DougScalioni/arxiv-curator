@@ -205,8 +205,13 @@ def get_keywords(user_id: str) -> list[str]:
 
 def get_followed_authors(user_id: str) -> list[dict]:
     db = get_admin_client()
-    result = db.table("followed_authors").select("author_name,folder").eq("user_id", user_id).execute()
-    return [{"name": r["author_name"], "folder": r.get("folder")} for r in result.data]
+    try:
+        result = db.table("followed_authors").select("author_name,folder").eq("user_id", user_id).execute()
+        return [{"name": r["author_name"], "folder": r.get("folder")} for r in result.data]
+    except Exception:
+        # folder column not yet migrated — fall back to name-only
+        result = db.table("followed_authors").select("author_name").eq("user_id", user_id).execute()
+        return [{"name": r["author_name"], "folder": None} for r in result.data]
 
 
 def get_reading_list(user_id: str) -> list[dict]:
@@ -443,7 +448,6 @@ def _start_scheduler():
     from utils.email import send_weekly_digest
     chicago = ZoneInfo("America/Chicago")
     scheduler = BackgroundScheduler(timezone=chicago)
-    scheduler.add_job(_fetch_and_refresh, "cron", day_of_week="mon,tue,wed,thu,fri", hour=0, minute=1)
     scheduler.add_job(_cleanup_old_papers, "cron", hour=10, minute=0)
     scheduler.add_job(send_weekly_digest, "cron", hour=8, minute=1)
     scheduler.add_job(_maybe_fetch_today, "date")  # one-shot at startup
