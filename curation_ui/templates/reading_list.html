@@ -124,7 +124,7 @@ async function remove(id) {
 }
 
 function toggleExpand(el, e) {
-  if (e.target.closest('.paper-links') || e.target.tagName === 'A') return;
+  if (e.target.tagName === 'A') return;
   el.classList.toggle('expanded');
   if (el.classList.contains('expanded')) renderLatex();
 }
