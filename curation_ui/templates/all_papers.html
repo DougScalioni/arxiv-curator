@@ -175,6 +175,11 @@
   }
   .item-row .rm-btn:hover { color: var(--red); background: var(--red-light); }
 
+  .item-row.kw-active { background: var(--orange-bg); border-radius: 2px; }
+  .item-row.kw-active .item-name { color: var(--orange); font-weight: bold; }
+  .item-row .item-name.kw-clickable { cursor: pointer; }
+  .item-row .item-name.kw-clickable:hover { color: var(--orange); text-decoration: underline; }
+
   .empty-note { font-size: 0.75em; color: var(--text-dim); font-style: italic; line-height: 1.4; }
 
   /* Add keyword form */
@@ -749,6 +754,7 @@ let followedAuthors = new Map(); // name → folder (null = ungrouped)
 let _pendingFolders = new Set(); // locally-created empty folders not yet persisted to DB
 let _draggingAuthor = null;      // name of the author currently being dragged
 let keywords = [];        // [string]
+let selectedKeyword = null; // keyword name to filter to, or null for no filter
 let readingListIds = new Set();
 function baseId(id) { return (id || '').replace(/v\d+$/, ''); }
 let _scoreCache = new Map();
@@ -782,6 +788,7 @@ let startupCats = [];     // top-level cats to pre-select; empty = all
 
 async function setView(mode) {
   viewMode = mode;
+  selectedKeyword = null;
   document.getElementById('toggle-day').className = 'sb-btn sb-btn-group' + (mode === 'day' ? ' sb-btn-active' : '');
   document.getElementById('toggle-week').className = 'sb-btn sb-btn-group' + (mode === 'week' ? ' sb-btn-active' : '');
   document.getElementById('header-date').textContent = mode === 'week' ? '// this week' : `// ${DATE}`;
@@ -1363,11 +1370,17 @@ function renderKeywordSidebar() {
   }).sort((a, b) => b.count - a.count);
 
   el.innerHTML = rows.map(({name, count}) => `
-    <div class="item-row">
-      <span class="item-name">${escHtml(name)}</span>
+    <div class="item-row${selectedKeyword === name ? ' kw-active' : ''}">
+      <span class="item-name kw-clickable" onclick="toggleKeywordFilter('${escHtml(name)}')">${escHtml(name)}</span>
       <span class="item-weight">${count}</span>
       <button class="rm-btn" onclick="removeKeyword('${escHtml(name)}')" title="remove">✕</button>
     </div>`).join('');
+}
+
+function toggleKeywordFilter(name) {
+  selectedKeyword = selectedKeyword === name ? null : name;
+  renderKeywordSidebar();
+  render();
 }
 
 async function addKeyword() {
@@ -1382,6 +1395,7 @@ async function addKeyword() {
 }
 
 async function removeKeyword(name) {
+  if (selectedKeyword === name) selectedKeyword = null;
   const d = await apiPost('/api/keywords/remove', {name});
   keywords = d.keywords;
   renderKeywordSidebar();
@@ -1436,6 +1450,10 @@ function filtered() {
     if (!matchesSearch(p)) return false;
     if (onlyFollowed && !(p.authors||[]).some(a => followedAuthors.has(a))) return false;
     if (onlyKeywords && cachedScore(p).score === 0) return false;
+    if (selectedKeyword) {
+      const text = ((p.title||'') + ' ' + (p.abstract||'')).toLowerCase();
+      if (!text.includes(selectedKeyword.toLowerCase())) return false;
+    }
     return true;
   });
 
