@@ -416,6 +416,17 @@ def api_reading_list_remove():
     return jsonify({"ok": True, "ids": [p["id"] for p in papers]})
 
 
+@app.route("/api/send-digest", methods=["POST"])
+@require_auth
+def api_send_digest():
+    from utils.email import send_weekly_digest
+    try:
+        send_weekly_digest(force=True)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 # ── Scheduler ──────────────────────────────────────────────────────────────────
 
 def _fetch_and_refresh():

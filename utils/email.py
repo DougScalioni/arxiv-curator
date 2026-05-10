@@ -131,8 +131,11 @@ def _build_html(kw_papers: list[tuple[dict, list[str]]],
 </html>"""
 
 
-def send_weekly_digest() -> None:
-    """Send the weekly digest to all users whose preferences match today's day of week."""
+def send_weekly_digest(force: bool = False) -> None:
+    """Send the weekly digest to all users whose preferences match today's day of week.
+
+    force=True bypasses the day-of-week check (used for manual test triggers).
+    """
     from utils.supabase_client import get_admin_client
     from datetime import datetime
     from zoneinfo import ZoneInfo
@@ -175,8 +178,8 @@ def send_weekly_digest() -> None:
             auth_days    = prefs.get("auth_days",     [])
             kw_limit     = max(1, int(prefs.get("kw_limit", 20)))
 
-            send_kw   = kw_enabled   and today_dow in kw_days
-            send_auth = auth_enabled and today_dow in auth_days
+            send_kw   = kw_enabled   and (force or today_dow in kw_days)
+            send_auth = auth_enabled and (force or today_dow in auth_days)
             if not send_kw and not send_auth:
                 continue
 
