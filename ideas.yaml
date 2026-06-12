@@ -8,3 +8,17 @@ some ideas:
 - where to click to expand the listing.
 - public author lists.
 - biorxiv?
+
+fetch fix:
+
+every now and then, the papers fail to load.
+
+ 1. Add a workflow_dispatch trigger (you already have it) and manually kick it
+  off when it misses — not ideal but simple.
+  2. Use an external cron service (like cron-job.org) to hit the GitHub API and
+  trigger your workflow via workflow_dispatch on a schedule — more reliable.
+  3. Move the scheduled fetch somewhere else — a cron job on a VPS, Fly.io's
+  scheduled machines, etc.
+
+email fix:
+gotta fix the email.

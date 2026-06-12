@@ -183,8 +183,9 @@ def get_raw_papers(date: str) -> list[dict]:
     db     = get_admin_client()
     result = db.table("papers").select("papers").eq("date", date).execute()
     papers = result.data[0]["papers"] if result.data else []
-    _papers_cache.clear()
-    _papers_cache[date] = papers
+    if papers:  # don't cache empty results — fetcher may not have run yet
+        _papers_cache.clear()
+        _papers_cache[date] = papers
     return papers
 
 
@@ -464,7 +465,10 @@ def _start_scheduler():
     # misfire_grace_time: if the machine restarts after 8:01 AM, still send the
     # digest as long as we're within the same hour.
     scheduler.add_job(send_weekly_digest, "cron", hour=8, minute=1, misfire_grace_time=3600)
-    scheduler.add_job(_maybe_fetch_today, "date")  # one-shot at startup
+    scheduler.add_job(_maybe_fetch_today, "date")  # one-shot at startup (cold-start recovery)
+    # Run daily at 8:30 AM Chicago so papers are available before GitHub Actions fires.
+    # arXiv posts new listings around 8:00 AM CDT (13:00 UTC); 30-min buffer is enough.
+    scheduler.add_job(_maybe_fetch_today, "cron", hour=8, minute=30, day_of_week="mon-fri")
     scheduler.start()
 
 
