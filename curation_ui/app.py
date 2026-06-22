@@ -445,8 +445,15 @@ def _cleanup_old_papers():
 
 def _maybe_fetch_today():
     """Fetch today's papers if missing — runs once at startup to recover from missed jobs."""
-    from datetime import date
+    from datetime import date, datetime
+    from zoneinfo import ZoneInfo
     if date.today().weekday() >= 5:
+        return
+    # arXiv posts new listings around 8:00 AM CDT (13:00 UTC). If we're before 8:30 AM
+    # Chicago, skip the startup fetch and let the 8:30 AM cron handle it — otherwise a
+    # restart before arXiv updates would store Friday's listing under today's date.
+    chicago_now = datetime.now(ZoneInfo("America/Chicago"))
+    if (chicago_now.hour, chicago_now.minute) < (8, 30):
         return
     today  = today_str()
     db     = get_admin_client()
