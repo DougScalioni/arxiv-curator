@@ -110,7 +110,7 @@ def fetch_details(ids: list[str]) -> list[dict]:
     return list(papers.values())
 
 
-def main():
+def main(force: bool = False):
     if date.today().weekday() >= 5:
         print("Weekend — skipping fetch.")
         return
@@ -119,7 +119,7 @@ def main():
     date_str = today_str()
 
     db = get_admin_client()
-    if db.table("papers").select("date").eq("date", date_str).execute().data:
+    if not force and db.table("papers").select("date").eq("date", date_str).execute().data:
         print(f"Papers for {date_str} already in DB — skipping.")
         return
 

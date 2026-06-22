@@ -1,0 +1,7 @@
+2026-06-22
+
+The UI was showing stale Friday papers on Monday because the app's startup recovery fetch (`_maybe_fetch_today`) was firing before arXiv had posted the day's new listing (~13:00 UTC), storing the old listing under today's date and then skipping the 8:30 AM cron re-fetch since an entry already existed. Fixed by adding a time guard to the startup fetch so it only runs after 8:30 AM Chicago time, matching the scheduled cron.
+
+Added a `--force` flag to the fetcher (`python -m fetcher --force`) to allow re-fetching without manually deleting today's DB entry first.
+
+Confirmed today's stale papers were an arXiv-side issue: their `/new` listing was still showing "Friday, 19 June 2026" at time of investigation.
